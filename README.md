@@ -1,9 +1,9 @@
 # Doc_Project_Tool - Công cụ Tạo Tài liệu Dự án Tự động
 
-# Interface
+## Interface
 ![image](https://github.com/user-attachments/assets/5ffbc36e-e9ed-4ed2-95c3-0aeaf7004421)
 
-# Ouput
+## Ouput
 ![image](https://github.com/user-attachments/assets/8d6b78e5-fdd1-4799-b298-067d09674266)
 
 ## Introduction
