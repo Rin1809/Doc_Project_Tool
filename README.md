@@ -127,8 +127,6 @@ Trước khi cài đặt và sử dụng **Doc_Project_Tool**, bạn cần đả
 
 Khi chạy file `Tool.py` hoặc `run.bat`, bạn sẽ thấy giao diện chính của **Doc_Project_Tool**:
 
-![Giao diện chính Doc_Project_Tool](link_ảnh_giao_dien_chinh.png)
-
 Giao diện được chia thành các phần chính:
 
 1. **Chọn Thư mục Dự án:**  Khu vực này cho phép bạn thêm và quản lý các thư mục dự án mà bạn muốn tạo tài liệu.
@@ -253,7 +251,7 @@ if __name__ == "__main__":
 def say_hello(name):
     print(f"Xin chào, {name} từ module helper!")
 ```
-```
+
 
 **Giải thích:**
 
