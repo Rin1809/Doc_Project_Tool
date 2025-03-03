@@ -77,7 +77,7 @@ Trước khi cài đặt và sử dụng **Doc_Project_Tool**, bạn cần đả
 1. **Tải Dự án:** Clone hoặc tải xuống mã nguồn của dự án **Doc_Project_Tool** từ GitHub (hoặc nguồn cung cấp khác).
 
    ```bash
-   git clone [URL_repository_GitHub_của_bạn]
+   git clone https://github.com/Rin1809/Doc_Project_Tool/
    cd Doc_Project_Tool
    ```
 
@@ -502,7 +502,7 @@ Before installing and using **Doc_Project_Tool**, ensure your system has the fol
 1. **Download Project:** Clone or download the source code of the **Doc_Project_Tool** project from GitHub (or other source).
 
    ```bash
-   git clone [Your_GitHub_Repository_URL]
+   git clone https://github.com/Rin1809/Doc_Project_Tool/
    cd Doc_Project_Tool
    ```
 
@@ -926,7 +926,7 @@ Doc_Project_Tool/
 1. **プロジェクトのダウンロード:** GitHub（または他のソース）から **Doc_Project_Tool** プロジェクトのソースコードをクローンまたはダウンロードします。
 
    ```bash
-   git clone [Your_GitHub_Repository_URL]
+   git clone https://github.com/Rin1809/Doc_Project_Tool/
    cd Doc_Project_Tool
    ```
 
