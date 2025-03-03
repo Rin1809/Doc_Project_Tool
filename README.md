@@ -307,14 +307,13 @@ Bạn muốn tạo tài liệu Markdown, loại trừ thư mục `venv` và file
 # Dự án: my_web_project - ...
 
 my_web_project/
-- css/
-    - styles.css
-- img/
-    - logo.png (Không liệt kê)
-- js/
-    - script.js
-- venv/ (Không liệt kê)
-- index.html
+├── index.html
+├── css/
+│   └── styles.css
+├── js/
+│   └── script.js
+├── img/
+└── venv/          (Không liệt kê)
 
 
 ### [Xử lý file]
@@ -323,9 +322,9 @@ my_web_project/
 - 📁 Thư mục đã quét: 2
 - 📄 Tệp đã quét: 3
 - 📂 Thư mục bỏ qua:
-    - venv
+    └──venv
 - 📄 Tệp bỏ qua:
-    - img\logo.png
+    └── img\logo.png
 
 **index.html**
 
@@ -343,7 +342,7 @@ my_web_project/
     <script src="js/script.js"></script>
 </body>
 </html>
-```
+
 
 **css\styles.css**
 
@@ -354,12 +353,13 @@ body {
 h1 {
     color: blue;
 }
-```
+
 
 **js\script.js**
 
 ```javascript
 console.log("Trang web đã được tải!");
+
 ```
 
 **Giải thích:**
