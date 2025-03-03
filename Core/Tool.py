@@ -5,7 +5,7 @@ from tkinter import filedialog, scrolledtext, messagebox
 from threading import Thread
 import customtkinter as ctk
 from tkinter import ttk
-import subprocess  # Import the subprocess module
+import subprocess  
 
 
 ctk.set_appearance_mode("dark")
@@ -84,26 +84,6 @@ def format_output_for_tkinter(message, execution_time=None, num_files=0, num_fol
 
 
 def tao_tai_lieu_du_an(duong_dan_thu_muc, thu_muc_con_loai_tru=None, tep_loai_tru=None, ten_tep_co_so="tai_lieu_du_an", thu_muc_dau_ra=".", verbose=False, output_format="txt"):
-    """
-    Tạo tài liệu dự án từ các thư mục được chỉ định.
-
-    Args:
-        duong_dan_thu_muc (list/tuple): Danh sách các đường dẫn thư mục dự án.
-        thu_muc_con_loai_tru (list, optional): Danh sách tên thư mục con cần loại trừ.
-        tep_loai_tru (list, optional): Danh sách phần mở rộng hoặc tên tệp cần loại trừ.
-        ten_tep_co_so (str, optional): Tên tệp cơ sở cho tài liệu.
-        thu_muc_dau_ra (str, optional): Thư mục đầu ra.
-        verbose (bool, optional): Bật chế độ verbose.
-        output_format (str, optional): Định dạng đầu ra ('txt' or 'markdown').
-
-    Raises:
-        TypeError: Nếu duong_dan_thu_muc không phải là list hoặc tuple.
-        ValueError: Nếu duong_dan_thu_muc rỗng.
-
-    Returns:
-        tuple: (message, execution_time, total_files_processed, total_folders_processed,
-                all_errors, all_skipped_files, all_skipped_folders, output_path)
-    """
 
     # Kiểm tra đầu vào
     if not isinstance(duong_dan_thu_muc, (list, tuple)):
@@ -131,7 +111,7 @@ def tao_tai_lieu_du_an(duong_dan_thu_muc, thu_muc_con_loai_tru=None, tep_loai_tr
     all_errors = {}
     all_skipped_files = []
     all_skipped_folders = []
-    all_output_paths = []  # To store all created file paths
+    all_output_paths = []  
 
     for duong_dan in duong_dan_thu_muc:
         if not os.path.isdir(duong_dan):
@@ -150,7 +130,7 @@ def tao_tai_lieu_du_an(duong_dan_thu_muc, thu_muc_con_loai_tru=None, tep_loai_tr
             ten_file = os.path.join(thu_muc_dau_ra_du_an, f"{ten_tep_co_so} {count}{file_extension}")
             count += 1
 
-        all_output_paths.append(os.path.abspath(ten_file))  # Store absolute path
+        all_output_paths.append(os.path.abspath(ten_file))  
 
         num_files_processed = 0
         num_folders_processed = 0
@@ -504,12 +484,12 @@ class ProjectDocApp:
 
         dialog = tk.Toplevel(self.root)
         dialog.title("Hoàn thành")
-        dialog.geometry("400x250")  # Increased height for the extra button
+        dialog.geometry("400x250") 
         dialog.resizable(False, False)
         dialog.configure(bg="#242424")
 
         x = self.root.winfo_x() + self.root.winfo_width() // 2 - 200
-        y = self.root.winfo_y() + self.root.winfo_height() // 2 - 125  # Adjusted y-coordinate
+        y = self.root.winfo_y() + self.root.winfo_height() // 2 - 125
         dialog.geometry(f"+{x}+{y}")
 
         message_label = ttk.Label(
@@ -523,35 +503,32 @@ class ProjectDocApp:
         message_label.pack(pady=20, padx=10)
 
         # --- Button Frame ---
-        button_frame = ttk.Frame(dialog, style="TFrame")  # Use a Frame for layout
+        button_frame = ttk.Frame(dialog, style="TFrame")
         button_frame.pack(pady=10)
         
-        # Function to open the output directory
+
         def open_output_directory():
-            # Use the first path in output_paths_str.  We assume all files are
-            # in the same directory, or subdirectories of the same parent.
             first_output_path = output_paths_str.split(", ")[0]
             output_dir = os.path.dirname(first_output_path)
 
             try:
-                if os.name == 'nt':  # Windows
+                if os.name == 'nt':  
                     subprocess.Popen(['explorer', output_dir])
-                elif os.name == 'posix':  # macOS and Linux
-                    subprocess.Popen(['open', output_dir])  # Use 'open' on macOS
-                else: # Other OS
+                elif os.name == 'posix':  
+                    subprocess.Popen(['open', output_dir])  
+                else: 
                     messagebox.showerror("Lỗi", "Không hỗ trợ mở thư mục trên hệ điều hành này.")
 
             except Exception as e:
                 messagebox.showerror("Lỗi", f"Không thể mở thư mục: {e}")
 
-        # "Go to Folder" button
         go_to_folder_button = ttk.Button(
             button_frame,
             text="Đi tới thư mục",
             command=open_output_directory,
             style="TButton"
         )
-        go_to_folder_button.pack(side=tk.LEFT, padx=5) # Pack to the left within the frame
+        go_to_folder_button.pack(side=tk.LEFT, padx=5)
 
 
         # OK button
@@ -561,8 +538,7 @@ class ProjectDocApp:
             command=dialog.destroy,
             style="TButton"
         )
-        ok_button.pack(side=tk.LEFT, padx=5)  # Pack to the left, next to the other button
-
+        ok_button.pack(side=tk.LEFT, padx=5)  
         dialog.grab_set()
 
     def show_error(self, error_message):
