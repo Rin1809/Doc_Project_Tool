@@ -1,0 +1,34 @@
+[
+    {
+        "name": "Doc_Project_Tool (19/05 11:02)",
+        "project_dirs": [
+            "E:\\pythonpj\\Doc_Project_Tool"
+        ],
+        "output_dir": "F:\\C to D",
+        "base_filename": "tai_lieu_du_an",
+        "excluded_subdirs": [
+            "__pycache__",
+            "moitruongao",
+            "venv",
+            ".git",
+            ".vscode",
+            "bieutuong",
+            "memory",
+            "node_modules",
+            "uploads",
+            "chats",
+            "package-lock.json"
+        ],
+        "excluded_files": [
+            ".pyc",
+            "desktop.ini",
+            ".rar",
+            "ex.json",
+            ".jpg",
+            ".mp3"
+        ],
+        "output_format": "txt",
+        "verbose": true,
+        "timestamp": "2025-05-19T11:02:22.048184"
+    }
+]
