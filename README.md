@@ -1,4 +1,4 @@
-# Doc_Project_Tool - Công cụ Tạo Tài liệu Dự án Tự động
+# Doc_Project_Tool - Automatic Project Documentation Generator
 
 ## Interface
 ![image](https://github.com/user-attachments/assets/5ffbc36e-e9ed-4ed2-95c3-0aeaf7004421)
