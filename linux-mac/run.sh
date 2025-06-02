@@ -6,7 +6,7 @@ cd "$PROJECT_ROOT"
 
 VENV_NAME="moitruongao"
 PYTHON_EXE_IN_VENV="$VENV_NAME/bin/python"
-MAIN_SCRIPT="Core/run_app.py"
+MAIN_SCRIPT="run_app.py"
 
 echo "==========================================================="
 echo "Doc_Project_Tool Setup & Run Script for Linux/macOS"

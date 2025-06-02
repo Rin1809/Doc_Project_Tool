@@ -716,9 +716,10 @@ class ProjectDocApp(BaseMainWindow):
             try:
                 QDesktopServices.openUrl(ai_studio_url)
                 clipboard = QApplication.clipboard()
-                normalized_path = self.last_main_output_file.replace("\\", "/")
-                clipboard.setText(normalized_path)
-                QMessageBox.information(self, Translations.get("dialog_notice_title"), Translations.get("ai_studio_opened_path_copied_text", path=normalized_path)) 
+                # path_for_clipboard = self.last_main_output_file.replace("\\", "/") # Old, gay / tren Win
+                path_for_clipboard = os.path.normpath(self.last_main_output_file) # Dg dan chuan OS
+                clipboard.setText(path_for_clipboard)
+                QMessageBox.information(self, Translations.get("dialog_notice_title"), Translations.get("ai_studio_opened_path_copied_text", path=path_for_clipboard)) 
             except Exception as e:
                 QMessageBox.critical(self, Translations.get("dialog_error_title"), Translations.get("cannot_open_ai_studio_text", error=str(e))) 
         else:

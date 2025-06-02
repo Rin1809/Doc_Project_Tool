@@ -7,7 +7,7 @@ cd /D "%SCRIPT_DIR%.."
 set VENV_NAME=moitruongao
 set PYTHON_EXE_IN_VENV=%VENV_NAME%\Scripts\python.exe
 set PYTHONW_EXE_IN_VENV=%VENV_NAME%\Scripts\pythonw.exe
-set MAIN_SCRIPT=Core\run_app.py
+set MAIN_SCRIPT=run_app.py
 
 echo ===========================================================
 echo Doc_Project_Tool Setup & Run Script for Windows
