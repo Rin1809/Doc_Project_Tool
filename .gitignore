@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+moitruongao/
 # C extensions
 *.so
 
@@ -113,15 +114,16 @@ moitruongao/ # Thu muc moi truong ao cua ban
 # Pyre type checker
 .pyre/
 
+# pytype static analyzer
 .pytype/
 
-
+# Cython debug symbols
 cython_debug/
 
-
+# VSCode
 .vscode/
 
-
+# IDE-specific
 *.idea/
 *.iml
 *.project
@@ -131,6 +133,7 @@ cython_debug/
 *.user
 *.sln.docstates
 
+# Log files
 logs/
 *.log
 npm-debug.log*
@@ -138,10 +141,20 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
+# Config files
+# Core/doc_tool_config.json # Bi comment out neu muon commit lan dau
+# Core/doc_tool_history.json # Bi comment out neu muon commit lan dau
 
+# Node
 node_modules/
 package-lock.json
 
+# Output files from this project
+# (Tuy chon: neu ban muon bo qua cac file tai_lieu_du_an*.txt/.md dc tao ra)
+# tai_lieu_du_an*.txt
+# tai_lieu_du_an*.md
+# a_box/ # Neu a_box la thu muc output pho bien
 
+# Specific config files to ignore
 Core/doc_tool_config.json
 Core/doc_tool_history.json
