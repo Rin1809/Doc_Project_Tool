@@ -1,379 +1,465 @@
 import os
-import tkinter as tk
-from tkinter import filedialog, messagebox
-from threading import Thread
-import customtkinter as ctk
-import subprocess
+import sys
 import json
 from datetime import datetime
-import webbrowser # Them wb
+import subprocess
+import webbrowser
+from threading import Thread # Giu lai Thread cho tac vu nen
 
-from .constants import (
-    TITLE_FONT_SIZE, HEADER_FONT_SIZE, NORMAL_FONT_SIZE, SMALL_FONT_SIZE,
-    PRIMARY_COLOR, ACCENT_COLOR, HOVER_COLOR, SUCCESS_COLOR, WARNING_COLOR, ERROR_COLOR,
-    DEFAULT_EXCLUDED_SUBDIRS, DEFAULT_EXCLUDED_FILES, DEFAULT_OUTPUT_DIR, DEFAULT_BASE_FILENAME,
-    HISTORY_FILE, MAX_HISTORY_ITEMS
+from PySide6.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QFileDialog, QMessageBox, QLineEdit, QListWidget, QListWidgetItem,
+    QRadioButton, QCheckBox, QTabWidget, QProgressBar, QPlainTextEdit,
+    QScrollArea, QFrame, QGroupBox, QSpacerItem, QSizePolicy, QFormLayout
 )
-from .gui_components import CustomScrolledText
-from .gui_utils import format_output_for_tkinter
+from PySide6.QtCore import Qt, Signal, Slot, QThread as QCoreThread, QObject
+from PySide6.QtGui import QFont, QDesktopServices, QClipboard, QPalette, QColor, QIcon
+
+from .base_main_window import BaseMainWindow # Lop co so moi
 from .app_logic import tao_tai_lieu_du_an
+from .gui_utils import format_output_for_tkinter
+from .constants import (
+    DEFAULT_EXCLUDED_SUBDIRS, DEFAULT_EXCLUDED_FILES,
+    DEFAULT_OUTPUT_DIR, DEFAULT_BASE_FILENAME,
+    HISTORY_FILE, MAX_HISTORY_ITEMS,
+    NORMAL_FONT_SIZE, HEADER_FONT_SIZE, SMALL_FONT_SIZE,
+    TEXT_COLOR, SUBTEXT_COLOR, INPUT_BG_COLOR, INPUT_BORDER_COLOR, INPUT_FOCUS_BORDER_COLOR,
+    PRIMARY_COLOR, ACCENT_COLOR, HOVER_COLOR, SUCCESS_COLOR, WARNING_COLOR, ERROR_COLOR,
+    CONTAINER_BG_COLOR, WINDOW_BG_COLOR # <<< THEM WINDOW_BG_COLOR VAO DAY
+)
 
-# Lop chinh GUI
-class ProjectDocApp:
-    def __init__(self, root):
-        self.root = root # Cua so goc
-        root.title("Tao Tai Lieu Du An")
-        root.geometry("1000x800")
-        root.minsize(800, 700)
+# Worker cho tac vu tao tai lieu
+class DocWorker(QObject):
+    finished = Signal(tuple) # (message, exec_time, num_files, num_folders, errors, skipped_files, skipped_folders, output_paths_str)
+    progress_update = Signal(str) # Cap nhat trang thai
+    error_occurred = Signal(str)
 
-        self.font_family = "Segoe UI" if os.name == "nt" else "Helvetica" # Chon font
-        self.title_font = ctk.CTkFont(family=self.font_family, size=TITLE_FONT_SIZE, weight="bold")
-        self.header_font = ctk.CTkFont(family=self.font_family, size=HEADER_FONT_SIZE, weight="bold")
-        self.normal_font = ctk.CTkFont(family=self.font_family, size=NORMAL_FONT_SIZE)
-        self.small_font = ctk.CTkFont(family=self.font_family, size=SMALL_FONT_SIZE)
+    def __init__(self, project_dirs, excluded_subdirs, excluded_files,
+                 base_filename, output_dir, verbose, output_format):
+        super().__init__()
+        self.project_dirs = project_dirs
+        self.excluded_subdirs = excluded_subdirs
+        self.excluded_files = excluded_files
+        self.base_filename = base_filename
+        self.output_dir = output_dir
+        self.verbose = verbose
+        self.output_format = output_format
 
-        # Colors
-        self.primary_color = PRIMARY_COLOR
-        self.accent_color = ACCENT_COLOR
-        self.hover_color = HOVER_COLOR
-        self.success_color = SUCCESS_COLOR
-        self.warning_color = WARNING_COLOR
-        self.error_color = ERROR_COLOR
+    @Slot()
+    def run(self):
+        try:
+            self.progress_update.emit("Bắt đầu tạo tài liệu...")
+            result = tao_tai_lieu_du_an(
+                self.project_dirs, self.excluded_subdirs, self.excluded_files,
+                self.base_filename, self.output_dir, self.verbose, self.output_format
+            )
+            self.finished.emit(result)
+        except Exception as e:
+            self.error_occurred.emit(f"Lỗi trong worker: {str(e)}")
 
-        # Variables
-        self.project_dirs = [] # DS TM DA
-        self.excluded_subdirs = list(DEFAULT_EXCLUDED_SUBDIRS) # TM con loai tru
-        self.excluded_files = list(DEFAULT_EXCLUDED_FILES) # Tep loai tru
-        self.output_dir = DEFAULT_OUTPUT_DIR # TM out MD
-        self.base_filename = DEFAULT_BASE_FILENAME # Ten tep co so MD
-        self.verbose = tk.BooleanVar(value=False)
-        self.output_format = tk.StringVar(value="txt")
-        self.progress_var = tk.DoubleVar(value=0)
-        self.status_var = tk.StringVar(value="San sang")
+
+class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
+    def __init__(self, base_app_path):
+        super().__init__(base_app_path) # Goi init cua BaseMainWindow
+        self.setWindowTitle("Tạo Tài Liệu Dự Án - PySide6")
+        self.custom_title_bar.setTitle("Tạo Tài Liệu Dự Án")
+        self.custom_title_bar.setVersion("v3.0.0-PySide6")
+
+        # Khoi tao cac bien trang thai va cau hinh
+        self._init_app_variables()
+        self._create_ui() # Tao UI trong main_content_widget cua BaseMainWindow
+        self._apply_qss_styles() # Ap dung QSS
+        self._connect_signals()
+        self.load_history_from_file()
+        self._update_control_states()
+
+    def _init_app_variables(self):
+        self.project_dirs = []
+        self.excluded_subdirs_list = list(DEFAULT_EXCLUDED_SUBDIRS)
+        self.excluded_files_list = list(DEFAULT_EXCLUDED_FILES)
+        self.output_dir_path = DEFAULT_OUTPUT_DIR
+        self.base_filename_str = DEFAULT_BASE_FILENAME
+        self.verbose_state = False
+        self.output_format_str = "txt"
+        self.last_main_output_file = None
+        self.history_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), HISTORY_FILE)
+        self.history_data = []
+        self.worker_thread = None # Cho QThread
+        self.doc_worker = None  # Cho QObject worker
+
+
+    def _create_ui(self):
+        # main_content_widget da duoc tao trong BaseMainWindow
+        # Tao layout cho main_content_widget
+        content_layout = QVBoxLayout(self.main_content_widget)
+        content_layout.setContentsMargins(15, 15, 15, 15) # Padding cho content
+        content_layout.setSpacing(10)
+
+        self.tab_widget = QTabWidget()
+        self.tab_widget.setObjectName("mainTabWidget")
+        content_layout.addWidget(self.tab_widget)
+
+        self._create_config_tab()
+        self._create_advanced_tab()
+        self._create_history_tab()
+        self._create_output_tab()
+
+        self._create_status_bar(content_layout) # Them status bar vao layout chinh
+
+    def _create_config_tab(self):
+        tab_config = QWidget()
+        tab_config.setObjectName("configTab")
+        layout = QVBoxLayout(tab_config)
+        layout.setSpacing(15)
+
+        # Muc Thu muc du an
+        dir_group = QGroupBox("Thư mục dự án")
+        dir_group.setObjectName("configGroup")
+        dir_layout = QVBoxLayout(dir_group)
         
-        self.last_main_output_file = None # Luu path file TLDA moi nhat
+        self.project_dir_list_widget = QListWidget()
+        self.project_dir_list_widget.setObjectName("projectDirList")
+        self.project_dir_list_widget.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
+        dir_layout.addWidget(self.project_dir_list_widget)
 
-        # LS vars
-        self.history_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), HISTORY_FILE) # Path file LS
-        self.history_data = [] # DS luu cac muc LS
+        dir_buttons_layout = QHBoxLayout()
+        self.add_dir_btn = QPushButton("Thêm thư mục")
+        self.add_dir_btn.setObjectName("primaryButton")
+        self.remove_dir_btn = QPushButton("Xóa thư mục đã chọn")
+        dir_buttons_layout.addWidget(self.add_dir_btn)
+        dir_buttons_layout.addWidget(self.remove_dir_btn)
+        dir_buttons_layout.addStretch()
+        dir_layout.addLayout(dir_buttons_layout)
+        layout.addWidget(dir_group)
 
-        self.create_ui() # Tao UI
-        self.load_history_from_file() # Tai LS khi start
-
-    def create_ui(self): # Tao UI chinh
-        self.main_container = ctk.CTkFrame(self.root)
-        self.main_container.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
-
-        self.create_header()
-        self.create_tabs()
-        self.create_status_bar()
-
-    def create_header(self): # Tao header
-        header_frame = ctk.CTkFrame(self.main_container, corner_radius=10, fg_color="transparent")
-        header_frame.pack(fill=tk.X, padx=10, pady=(0, 15))
-
-        icon_label = ctk.CTkLabel(header_frame, text="📁", font=ctk.CTkFont(size=32))
-        icon_label.pack(side=tk.LEFT, padx=(5, 10))
-
-        title_label = ctk.CTkLabel(header_frame, text="Tao Tai Lieu Du An", font=self.title_font)
-        title_label.pack(side=tk.LEFT)
-
-        version_label = ctk.CTkLabel(header_frame, text="v2.2.2", font=self.small_font, text_color="gray") # VD: version
-        version_label.pack(side=tk.RIGHT, padx=10)
-
-    def create_tabs(self): # Tao tabview
-        self.tabview = ctk.CTkTabview(self.main_container, corner_radius=10)
-        self.tabview.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-
-        self.tab_config = self.tabview.add("Cau hinh")
-        self.tab_advanced = self.tabview.add("Nang cao")
-        self.tab_history = self.tabview.add("Lich su") # Tab LS
-        self.tab_output = self.tabview.add("Ket qua")
-
-        for tab in [self.tab_config, self.tab_advanced, self.tab_history, self.tab_output]: # Cfg tab
-            tab.grid_columnconfigure(0, weight=1)
-            tab.grid_rowconfigure(0, weight=1) # Cho phep ND tab mo rong
-
-        self.create_config_tab()
-        self.create_advanced_tab()
-        self.create_history_tab() # Tao ND tab LS
-        self.create_output_tab()
-
-    def create_config_tab(self): # ND tab "Cau hinh"
-        config_scroll = ctk.CTkScrollableFrame(self.tab_config)
-        config_scroll.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
-        config_scroll.columnconfigure(0, weight=1)
-
-        # Phan TM DA
-        dir_section = ctk.CTkFrame(config_scroll, corner_radius=10)
-        dir_section.pack(fill=tk.X, padx=10, pady=10)
-
-        section_label = ctk.CTkLabel(dir_section, text="Thu muc du an", font=self.header_font, anchor="w")
-        section_label.pack(fill=tk.X, padx=15, pady=(15, 5))
-        desc_label = ctk.CTkLabel(dir_section, text="Chon mot hoac nhieu thu muc du an de tao tai lieu.", font=self.normal_font, anchor="w", justify="left")
-        desc_label.pack(fill=tk.X, padx=15, pady=(0, 10))
-
-        self.dir_list_frame = ctk.CTkFrame(dir_section, fg_color="transparent")
-        self.dir_list_frame.pack(fill=tk.X, padx=15, pady=(5, 15))
-
-        self.project_dir_list = tk.Listbox(
-            self.dir_list_frame, height=6, selectbackground=self.accent_color,
-            font=(self.font_family, 12), bg="#2b2b2b", fg="#f2f2f2",
-            borderwidth=1, highlightthickness=0, relief="flat", selectmode=tk.EXTENDED
-        )
-        self.project_dir_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        scrollbar = ctk.CTkScrollbar(self.dir_list_frame, command=self.project_dir_list.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.project_dir_list.config(yscrollcommand=scrollbar.set)
-
-        dir_buttons_frame = ctk.CTkFrame(dir_section, fg_color="transparent")
-        dir_buttons_frame.pack(fill=tk.X, padx=15, pady=(0, 15))
-
-        self.add_dir_btn = ctk.CTkButton(
-            dir_buttons_frame, text="Them thu muc", command=self.add_project_directory,
-            font=self.normal_font, fg_color=self.primary_color, hover_color=self.hover_color,
-            corner_radius=8, height=35
-        )
-        self.add_dir_btn.pack(side=tk.LEFT, padx=(0, 10))
-
-        self.remove_dir_btn = ctk.CTkButton(
-            dir_buttons_frame, text="Xoa thu muc", command=self.remove_project_directory,
-            font=self.normal_font, fg_color="#555555", hover_color="#444444",
-            corner_radius=8, height=35
-        )
-        self.remove_dir_btn.pack(side=tk.LEFT)
-
-        # Phan TM out
-        output_section = ctk.CTkFrame(config_scroll, corner_radius=10)
-        output_section.pack(fill=tk.X, padx=10, pady=10)
-
-        output_label = ctk.CTkLabel(output_section, text="Thu muc dau ra", font=self.header_font, anchor="w")
-        output_label.pack(fill=tk.X, padx=15, pady=(15, 5))
-        output_desc = ctk.CTkLabel(output_section, text="Chon thu muc de luu tai lieu du an duoc tao ra.", font=self.normal_font, anchor="w", justify="left")
-        output_desc.pack(fill=tk.X, padx=15, pady=(0, 10))
-
-        output_dir_frame = ctk.CTkFrame(output_section, fg_color="transparent")
-        output_dir_frame.pack(fill=tk.X, padx=15, pady=(5, 15))
-
-        self.output_dir_entry = ctk.CTkEntry(
-            output_dir_frame, font=self.normal_font, corner_radius=8,
-            height=35, placeholder_text="Duong dan thu muc dau ra"
-        )
-        self.output_dir_entry.insert(0, self.output_dir)
-        self.output_dir_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
-
-        self.browse_btn = ctk.CTkButton(
-            output_dir_frame, text="Duyet...", command=self.browse_output_directory,
-            font=self.normal_font, fg_color=self.primary_color, hover_color=self.hover_color,
-            corner_radius=8, width=100, height=35
-        )
-        self.browse_btn.pack(side=tk.RIGHT)
-
-        filename_frame = ctk.CTkFrame(output_section, fg_color="transparent")
-        filename_frame.pack(fill=tk.X, padx=15, pady=(0, 15))
-        filename_label = ctk.CTkLabel(filename_frame, text="Ten tep co so:", font=self.normal_font, width=120, anchor="w")
-        filename_label.pack(side=tk.LEFT, padx=(0, 10))
-        self.base_filename_entry = ctk.CTkEntry(filename_frame, font=self.normal_font, corner_radius=8, height=35)
-        self.base_filename_entry.insert(0, self.base_filename)
-        self.base_filename_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
-
-        # Dinh dang
-        format_section = ctk.CTkFrame(config_scroll, corner_radius=10)
-        format_section.pack(fill=tk.X, padx=10, pady=10)
-        format_label = ctk.CTkLabel(format_section, text="Dinh dang dau ra", font=self.header_font, anchor="w")
-        format_label.pack(fill=tk.X, padx=15, pady=(15, 5))
-
-        format_options = ctk.CTkFrame(format_section, fg_color="transparent")
-        format_options.pack(fill=tk.X, padx=15, pady=(5, 15))
-
-        self.txt_radio = ctk.CTkRadioButton(
-            format_options, text="Van ban (.txt)", variable=self.output_format, value="txt",
-            font=self.normal_font, fg_color=self.accent_color
-        )
-        self.txt_radio.pack(side=tk.LEFT, padx=(0, 20))
-        self.md_radio = ctk.CTkRadioButton(
-            format_options, text="Markdown (.md)", variable=self.output_format, value="markdown",
-            font=self.normal_font, fg_color=self.accent_color
-        )
-        self.md_radio.pack(side=tk.LEFT)
-
-        self.verbose_check = ctk.CTkCheckBox(
-            format_options, text="Chi tiet", variable=self.verbose,
-            font=self.normal_font, fg_color=self.accent_color, checkbox_width=20, checkbox_height=20
-        )
-        self.verbose_check.pack(side=tk.RIGHT)
-
-        # Nut chay
-        run_frame = ctk.CTkFrame(config_scroll, fg_color="transparent")
-        run_frame.pack(fill=tk.X, padx=10, pady=(10, 20))
-        self.run_button = ctk.CTkButton(
-            run_frame, text="Tao Tai Lieu", command=self.run_documentation,
-            font=ctk.CTkFont(family=self.font_family, size=15, weight="bold"),
-            fg_color=self.success_color, hover_color="#218838",
-            corner_radius=8, height=40
-        )
-        self.run_button.pack(fill=tk.X, padx=15)
-
-    def create_advanced_tab(self): # ND tab "Nang cao"
-        advanced_scroll = ctk.CTkScrollableFrame(self.tab_advanced)
-        advanced_scroll.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
-        advanced_scroll.columnconfigure(0, weight=1)
-
-        excluded_dirs_section = ctk.CTkFrame(advanced_scroll, corner_radius=10)
-        excluded_dirs_section.pack(fill=tk.X, padx=10, pady=10)
-        excl_dirs_label = ctk.CTkLabel(excluded_dirs_section, text="Thu muc con loai tru", font=self.header_font, anchor="w")
-        excl_dirs_label.pack(fill=tk.X, padx=15, pady=(15, 5))
-        excl_dirs_desc = ctk.CTkLabel(excluded_dirs_section, text="Nhap TM con (cach nhau boi dau phay) de loai tru.", font=self.normal_font, anchor="w", justify="left")
-        excl_dirs_desc.pack(fill=tk.X, padx=15, pady=(0, 10))
-        self.excluded_subdirs_entry = ctk.CTkEntry(excluded_dirs_section, font=self.normal_font, corner_radius=8, height=35)
-        self.excluded_subdirs_entry.insert(0, ", ".join(self.excluded_subdirs))
-        self.excluded_subdirs_entry.pack(fill=tk.X, padx=15, pady=(5, 15))
-
-        excluded_files_section = ctk.CTkFrame(advanced_scroll, corner_radius=10)
-        excluded_files_section.pack(fill=tk.X, padx=10, pady=(0, 10)) 
-        excl_files_label = ctk.CTkLabel(excluded_files_section, text="Tep loai tru", font=self.header_font, anchor="w")
-        excl_files_label.pack(fill=tk.X, padx=15, pady=(15, 5))
-        excl_files_desc = ctk.CTkLabel(excluded_files_section, text="Nhap duoi tep/ten tep (cach nhau boi dau phay) de loai tru.", font=self.normal_font, anchor="w", justify="left")
-        excl_files_desc.pack(fill=tk.X, padx=15, pady=(0, 10))
-        self.excluded_files_entry = ctk.CTkEntry(excluded_files_section, font=self.normal_font, corner_radius=8, height=35)
-        self.excluded_files_entry.insert(0, ", ".join(self.excluded_files))
-        self.excluded_files_entry.pack(fill=tk.X, padx=15, pady=(5, 15))
-
-        save_button = ctk.CTkButton(
-            advanced_scroll, text="Luu Cai Dat", command=self.save_advanced_settings,
-            font=self.normal_font, fg_color="#6C757D", hover_color="#5A6268",
-            corner_radius=8, height=35
-        )
-        save_button.pack(fill=tk.X, padx=15, pady=(15, 20))
-
-    def create_history_tab(self): # ND tab "Lich su"
-        history_frame = ctk.CTkFrame(self.tab_history, fg_color="transparent")
-        history_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
-        history_frame.grid_columnconfigure(0, weight=1)
-        history_frame.grid_rowconfigure(1, weight=1) 
-
-        title_label = ctk.CTkLabel(history_frame, text="Lich su cau hinh da chay", font=self.header_font)
-        title_label.grid(row=0, column=0, sticky="w", padx=5, pady=(5,10), columnspan=2) 
-
-        self.history_listbox = tk.Listbox(
-            history_frame, height=15, font=(self.font_family, 12),
-            bg="#2b2b2b", fg="#f2f2f2", borderwidth=1, highlightthickness=0,
-            relief="flat", selectbackground=self.accent_color
-        )
-        self.history_listbox.grid(row=1, column=0, sticky="nsew", padx=(5,0), pady=5) 
-
-        history_scrollbar = ctk.CTkScrollbar(history_frame, command=self.history_listbox.yview)
-        history_scrollbar.grid(row=1, column=1, sticky="ns", padx=(0,5), pady=5) 
-        self.history_listbox.config(yscrollcommand=history_scrollbar.set)
-
-        buttons_frame = ctk.CTkFrame(history_frame, fg_color="transparent")
-        buttons_frame.grid(row=2, column=0, columnspan=2, sticky="ew", padx=5, pady=(10,5))
-
-        load_btn = ctk.CTkButton(
-            buttons_frame, text="Tai Cau Hinh", command=self.load_selected_history_item,
-            font=self.normal_font, fg_color=self.primary_color, hover_color=self.hover_color,
-            height=35, corner_radius=8
-        )
-        load_btn.pack(side=tk.LEFT, padx=(0,10))
-
-        delete_btn = ctk.CTkButton(
-            buttons_frame, text="Xoa Muc", command=self.delete_selected_history_item,
-            font=self.normal_font, fg_color=self.error_color, hover_color="#C82333", 
-            height=35, corner_radius=8
-        )
-        delete_btn.pack(side=tk.LEFT)
+        # Muc Thu muc dau ra
+        output_group = QGroupBox("Thiết lập đầu ra")
+        output_group.setObjectName("configGroup")
+        output_layout = QFormLayout(output_group)
+        output_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
+        output_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
         
-        delete_all_btn = ctk.CTkButton(
-            buttons_frame, text="Xoa Tat Ca", command=self.delete_all_history,
-            font=self.normal_font, fg_color=self.warning_color, hover_color="#E0A800", 
-            height=35, corner_radius=8
-        )
-        delete_all_btn.pack(side=tk.RIGHT, padx=(10,0))
+        self.output_dir_entry = QLineEdit(self.output_dir_path)
+        self.browse_output_btn = QPushButton("Duyệt...")
+        self.browse_output_btn.setObjectName("secondaryButton")
+        output_dir_hbox = QHBoxLayout()
+        output_dir_hbox.addWidget(self.output_dir_entry)
+        output_dir_hbox.addWidget(self.browse_output_btn)
+        output_layout.addRow("Thư mục đầu ra:", output_dir_hbox)
+
+        self.base_filename_entry = QLineEdit(self.base_filename_str)
+        output_layout.addRow("Tên tệp cơ sở:", self.base_filename_entry)
+        
+        # Dinh dang dau ra
+        format_hbox = QHBoxLayout()
+        self.txt_radio = QRadioButton("Văn bản (.txt)")
+        self.txt_radio.setChecked(True)
+        self.md_radio = QRadioButton("Markdown (.md)")
+        self.verbose_checkbox = QCheckBox("Chi tiết (verbose)")
+        format_hbox.addWidget(self.txt_radio)
+        format_hbox.addWidget(self.md_radio)
+        format_hbox.addSpacerItem(QSpacerItem(20,0, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum))
+        format_hbox.addWidget(self.verbose_checkbox)
+        format_hbox.addStretch()
+        output_layout.addRow("Định dạng:", format_hbox)
+        layout.addWidget(output_group)
+
+        # Nut Chay
+        self.run_button = QPushButton("🚀 Tạo Tài Liệu")
+        self.run_button.setObjectName("runButton")
+        self.run_button.setFixedHeight(40) # Lam nut to hon
+        layout.addWidget(self.run_button, 0, Qt.AlignmentFlag.AlignCenter)
+        layout.addStretch()
+        self.tab_widget.addTab(tab_config, "Cấu hình")
+
+    def _create_advanced_tab(self):
+        tab_advanced = QWidget()
+        tab_advanced.setObjectName("advancedTab")
+        layout = QVBoxLayout(tab_advanced)
+        layout.setSpacing(15)
+
+        excluded_dirs_group = QGroupBox("Thư mục con loại trừ (cách nhau bởi dấu phẩy)")
+        excluded_dirs_group.setObjectName("configGroup")
+        excluded_dirs_layout = QVBoxLayout(excluded_dirs_group)
+        self.excluded_subdirs_entry = QLineEdit(", ".join(self.excluded_subdirs_list))
+        excluded_dirs_layout.addWidget(self.excluded_subdirs_entry)
+        layout.addWidget(excluded_dirs_group)
+
+        excluded_files_group = QGroupBox("Tệp loại trừ (đuôi tệp hoặc tên tệp, cách nhau bởi dấu phẩy)")
+        excluded_files_group.setObjectName("configGroup")
+        excluded_files_layout = QVBoxLayout(excluded_files_group)
+        self.excluded_files_entry = QLineEdit(", ".join(self.excluded_files_list))
+        excluded_files_layout.addWidget(self.excluded_files_entry)
+        layout.addWidget(excluded_files_group)
+        
+        # Nut Luu khong can thiet, se tu dong lay gia tri khi chay
+        layout.addStretch()
+        self.tab_widget.addTab(tab_advanced, "Nâng cao")
+
+    def _create_history_tab(self):
+        tab_history = QWidget()
+        tab_history.setObjectName("historyTab")
+        layout = QVBoxLayout(tab_history)
+        layout.setSpacing(10)
+        
+        history_group = QGroupBox("Lịch sử cấu hình đã chạy")
+        history_group.setObjectName("configGroup")
+        history_layout = QVBoxLayout(history_group)
+
+        self.history_list_widget = QListWidget()
+        self.history_list_widget.setObjectName("historyList")
+        history_layout.addWidget(self.history_list_widget)
+
+        history_buttons_layout = QHBoxLayout()
+        self.load_history_btn = QPushButton("Tải Cấu Hình")
+        self.load_history_btn.setObjectName("primaryButton")
+        self.delete_history_btn = QPushButton("Xóa Mục")
+        self.delete_history_btn.setObjectName("warningButton")
+        self.delete_all_history_btn = QPushButton("Xóa Tất Cả")
+        self.delete_all_history_btn.setObjectName("errorButton")
+
+        history_buttons_layout.addWidget(self.load_history_btn)
+        history_buttons_layout.addWidget(self.delete_history_btn)
+        history_buttons_layout.addStretch()
+        history_buttons_layout.addWidget(self.delete_all_history_btn)
+        history_layout.addLayout(history_buttons_layout)
+        layout.addWidget(history_group)
+        self.tab_widget.addTab(tab_history, "Lịch sử")
+
+    def _create_output_tab(self):
+        tab_output = QWidget()
+        tab_output.setObjectName("outputTab")
+        layout = QVBoxLayout(tab_output)
+        layout.setSpacing(10)
+
+        self.output_text_edit = QPlainTextEdit() # PlainTextEdit tot hon cho log
+        self.output_text_edit.setObjectName("outputTextEdit")
+        self.output_text_edit.setReadOnly(True)
+        layout.addWidget(self.output_text_edit)
+
+        output_buttons_layout = QHBoxLayout()
+        self.copy_output_btn = QPushButton("Sao chép Kết quả")
+        self.copy_output_btn.setObjectName("secondaryButton")
+        self.clear_output_btn = QPushButton("Xóa Kết quả")
+        self.clear_output_btn.setObjectName("warningButton")
+        self.ai_studio_btn = QPushButton("🚀 Mở AI Studio (và sao chép đường dẫn tệp)")
+        self.ai_studio_btn.setObjectName("accentButton") # Mau khac
+        self.open_output_folder_btn = QPushButton("Mở Thư mục Đầu ra")
+        self.open_output_folder_btn.setObjectName("primaryButton")
+        
+        output_buttons_layout.addWidget(self.copy_output_btn)
+        output_buttons_layout.addWidget(self.clear_output_btn)
+        output_buttons_layout.addStretch()
+        output_buttons_layout.addWidget(self.ai_studio_btn)
+        output_buttons_layout.addWidget(self.open_output_folder_btn)
+        layout.addLayout(output_buttons_layout)
+        self.tab_widget.addTab(tab_output, "Kết quả")
+
+    def _create_status_bar(self, parent_layout):
+        status_bar_widget = QFrame() # Su dung QFrame de co the style
+        status_bar_widget.setObjectName("statusBar")
+        status_bar_widget.setFixedHeight(30)
+        status_layout = QHBoxLayout(status_bar_widget)
+        status_layout.setContentsMargins(10, 0, 10, 0)
+
+        self.status_label = QLabel("Sẵn sàng")
+        self.status_label.setObjectName("statusLabel")
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setObjectName("progressBar")
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setRange(0,100) # 0-100 cho % hoac 0-0 cho indeterminate
+
+        status_layout.addWidget(self.status_label)
+        status_layout.addSpacerItem(QSpacerItem(20,0,QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum))
+        status_layout.addWidget(self.progress_bar, 1) # Cho progress bar mo rong
+        parent_layout.addWidget(status_bar_widget)
+
+    def _connect_signals(self):
+        self.add_dir_btn.clicked.connect(self.add_project_directory)
+        self.remove_dir_btn.clicked.connect(self.remove_project_directory)
+        self.browse_output_btn.clicked.connect(self.browse_output_directory)
+        self.run_button.clicked.connect(self.run_documentation_process)
+
+        self.load_history_btn.clicked.connect(self.load_selected_history_item)
+        self.delete_history_btn.clicked.connect(self.delete_selected_history_item)
+        self.delete_all_history_btn.clicked.connect(self.delete_all_history)
+        self.history_list_widget.itemDoubleClicked.connect(self.load_selected_history_item)
 
 
-    def create_output_tab(self): # ND tab "Ket qua"
-        self.output_text = CustomScrolledText(self.tab_output, wrap=tk.WORD, font=self.normal_font)
-        self.output_text.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
-
-        buttons_frame = ctk.CTkFrame(self.tab_output, fg_color="transparent")
-        buttons_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 10))
-
-        self.copy_button = ctk.CTkButton(
-            buttons_frame, text="Sao chep", command=self.copy_to_clipboard,
-            font=self.normal_font, fg_color="#4CAF50", hover_color="#388E3C",
-            corner_radius=8, width=120, height=30
-        )
-        self.copy_button.pack(side=tk.LEFT, padx=(0, 10))
-
-        self.clear_button = ctk.CTkButton(
-            buttons_frame, text="Xoa", command=self.clear_output,
-            font=self.normal_font, fg_color="#F44336", hover_color="#D32F2F",
-            corner_radius=8, width=120, height=30
-        )
-        self.clear_button.pack(side=tk.LEFT, padx=(0, 10))
-
-        self.ai_studio_button = ctk.CTkButton(
-            buttons_frame, text="🚀 AI Studio", command=self.open_ai_studio_and_copy_path,
-            font=self.normal_font, fg_color="#7E57C2", hover_color="#5E35B1", 
-            corner_radius=8, height=30, state="disabled"
-        )
-        self.ai_studio_button.pack(side=tk.LEFT, padx=(0,10))
-
-        self.open_folder_button = ctk.CTkButton(
-            buttons_frame, text="Mo Thu Muc Dau Ra", command=self.open_output_folder,
-            font=self.normal_font, fg_color=self.primary_color, hover_color=self.hover_color,
-            corner_radius=8, height=30
-        )
-        self.open_folder_button.pack(side=tk.RIGHT, padx=(10, 0)) 
-        self.open_folder_button.configure(state="disabled")
+        self.copy_output_btn.clicked.connect(self.copy_output_to_clipboard)
+        self.clear_output_btn.clicked.connect(self.clear_output_display)
+        self.ai_studio_btn.clicked.connect(self.open_ai_studio_and_copy)
+        self.open_output_folder_btn.clicked.connect(self.open_output_folder_path)
+        
+        # Radio buttons for output format
+        self.txt_radio.toggled.connect(lambda: self._on_output_format_changed("txt", self.txt_radio.isChecked()))
+        self.md_radio.toggled.connect(lambda: self._on_output_format_changed("markdown", self.md_radio.isChecked()))
 
 
-    def create_status_bar(self): # Tao status bar
-        status_bar = ctk.CTkFrame(self.root, height=30, fg_color="transparent")
-        status_bar.pack(fill=tk.X, side=tk.BOTTOM, padx=15, pady=(5, 10))
+    def _on_output_format_changed(self, fmt, checked):
+        if checked:
+            self.output_format_str = fmt
 
-        self.status_label = ctk.CTkLabel(status_bar, textvariable=self.status_var, font=self.small_font)
-        self.status_label.pack(side=tk.LEFT)
-        self.progress_bar = ctk.CTkProgressBar(status_bar, variable=self.progress_var, height=10, corner_radius=5)
-        self.progress_bar.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=(10, 0))
-
-    def add_project_directory(self): # Them TM DA
-        directory = filedialog.askdirectory(title="Chon Thu Muc Du An")
+    @Slot()
+    def add_project_directory(self):
+        directory = QFileDialog.getExistingDirectory(self, "Chọn Thư mục Dự án")
         if directory:
             directory = os.path.abspath(directory)
-            if directory not in self.project_dirs:
-                self.project_dirs.append(directory)
-                self.project_dir_list.insert(tk.END, directory)
+            # Kiem tra trung lap
+            items = [self.project_dir_list_widget.item(i).text() for i in range(self.project_dir_list_widget.count())]
+            if directory not in items:
+                self.project_dir_list_widget.addItem(QListWidgetItem(directory))
+                self.project_dirs.append(directory) # Cap nhat DS noi bo
             else:
-                messagebox.showinfo("Thong bao", "Thu muc ban chon da co trong danh sach.")
+                QMessageBox.information(self, "Thông báo", "Thư mục bạn chọn đã có trong danh sách.")
+        self._update_control_states()
 
-    def remove_project_directory(self): # Xoa TM DA
-        selected_indices = self.project_dir_list.curselection()
-        if selected_indices:
-            for i in reversed(selected_indices):
-                self.project_dir_list.delete(i)
-                self.project_dirs.pop(i)
-        else:
-            messagebox.showinfo("Thong bao", "Vui long chon it nhat mot thu muc de xoa.")
 
-    def browse_output_directory(self): # Chon TM out
-        directory = filedialog.askdirectory(title="Chon Thu Muc Dau Ra")
+    @Slot()
+    def remove_project_directory(self):
+        selected_items = self.project_dir_list_widget.selectedItems()
+        if not selected_items:
+            QMessageBox.information(self, "Thông báo", "Vui lòng chọn ít nhất một thư mục để xóa.")
+            return
+        for item in selected_items:
+            row = self.project_dir_list_widget.row(item)
+            self.project_dir_list_widget.takeItem(row)
+            # Cap nhat DS noi bo (can than neu DS khong theo thu tu list widget)
+            # Cach an toan hon la build lai project_dirs tu list_widget
+        self.project_dirs = [self.project_dir_list_widget.item(i).text() for i in range(self.project_dir_list_widget.count())]
+        self._update_control_states()
+
+
+    @Slot()
+    def browse_output_directory(self):
+        directory = QFileDialog.getExistingDirectory(self, "Chọn Thư mục Đầu ra")
         if directory:
-            self.output_dir = os.path.abspath(directory)
-            self.output_dir_entry.delete(0, tk.END)
-            self.output_dir_entry.insert(0, self.output_dir)
+            self.output_dir_path = os.path.abspath(directory)
+            self.output_dir_entry.setText(self.output_dir_path)
+        self._update_control_states()
 
-    def save_advanced_settings(self): # Luu cai dat nang cao
-        self.excluded_subdirs = [s.strip() for s in self.excluded_subdirs_entry.get().split(",") if s.strip()]
-        self.excluded_files = [f.strip() for f in self.excluded_files_entry.get().split(",") if f.strip()]
-        messagebox.showinfo("Da Luu", "Cai dat nang cao da duoc cap nhat.")
+    def _get_current_config_from_ui(self):
+        # Lay cac gia tri tu UI
+        self.project_dirs = [self.project_dir_list_widget.item(i).text() for i in range(self.project_dir_list_widget.count())]
+        self.output_dir_path = self.output_dir_entry.text()
+        self.base_filename_str = self.base_filename_entry.text()
+        self.excluded_subdirs_list = [s.strip() for s in self.excluded_subdirs_entry.text().split(",") if s.strip()]
+        self.excluded_files_list = [f.strip() for f in self.excluded_files_entry.text().split(",") if f.strip()]
+        self.verbose_state = self.verbose_checkbox.isChecked()
+        # output_format_str da duoc cap nhat boi radio button signals
 
-    # --- Ham xu ly LS ---
-    def populate_history_listbox(self): # Dien LS vao listbox
-        self.history_listbox.delete(0, tk.END)
+    @Slot()
+    def run_documentation_process(self):
+        self._get_current_config_from_ui()
+
+        if not self.project_dirs:
+            QMessageBox.critical(self, "Lỗi", "Vui lòng chọn ít nhất một thư mục dự án.")
+            return
+        if not self.output_dir_path:
+            QMessageBox.critical(self, "Lỗi", "Vui lòng chọn thư mục đầu ra.")
+            return
+        if not self.base_filename_str:
+            QMessageBox.critical(self, "Lỗi", "Vui lòng nhập tên tệp cơ sở.")
+            return
+            
+        self.tab_widget.setCurrentWidget(self.tab_widget.findChild(QWidget, "outputTab")) # Chuyen sang tab KQ
+        self.output_text_edit.clear()
+        self.status_label.setText("Đang xử lý...")
+        self.progress_bar.setRange(0,0) # Indeterminate
+        self._update_control_states(is_running=True)
+        self.last_main_output_file = None
+
+
+        # Setup worker va thread
+        self.worker_thread = QCoreThread()
+        self.doc_worker = DocWorker(
+            self.project_dirs, self.excluded_subdirs_list, self.excluded_files_list,
+            self.base_filename_str, self.output_dir_path, self.verbose_state, self.output_format_str
+        )
+        self.doc_worker.moveToThread(self.worker_thread)
+
+        self.worker_thread.started.connect(self.doc_worker.run)
+        self.doc_worker.finished.connect(self._on_documentation_finished)
+        self.doc_worker.progress_update.connect(self.update_status_label_slot) # Slot de cap nhat status
+        self.doc_worker.error_occurred.connect(self._on_documentation_error)
+        
+        # Clean up thread when finished
+        self.doc_worker.finished.connect(self.worker_thread.quit)
+        self.doc_worker.finished.connect(self.doc_worker.deleteLater)
+        self.worker_thread.finished.connect(self.worker_thread.deleteLater)
+
+        self.worker_thread.start()
+
+
+    @Slot(str)
+    def update_status_label_slot(self, message):
+        self.status_label.setText(message)
+
+    @Slot(tuple)
+    def _on_documentation_finished(self, result):
+        (message, execution_time, num_files, num_folders,
+         errors, skipped_files, skipped_folders, output_paths_str) = result
+
+        formatted_output = format_output_for_tkinter(
+            message, execution_time, num_files, num_folders,
+            errors, skipped_files, skipped_folders, self.output_format_str
+        )
+        self.output_text_edit.appendPlainText(formatted_output)
+        self.status_label.setText(f"Hoàn tất! Tài liệu tại: {output_paths_str}")
+        self.progress_bar.setRange(0,100)
+        self.progress_bar.setValue(100)
+        self._update_control_states(is_running=False)
+
+        all_output_files = [p.strip() for p in output_paths_str.split(",") if p.strip()]
+        if all_output_files:
+            self.last_main_output_file = all_output_files[0]
+
+        is_successful_run = not errors or all("khong ton tai" in str(v).lower() or "not found" in str(v).lower() for v in errors.values())
+        if is_successful_run and self.project_dirs:
+            first_proj_dir_name = os.path.basename(self.project_dirs[0])
+            history_item_name = f"{first_proj_dir_name} ({datetime.now().strftime('%d/%m %H:%M')})"
+            if len(self.project_dirs) > 1:
+                history_item_name = f"{first_proj_dir_name},... ({datetime.now().strftime('%d/%m %H:%M')})"
+            
+            current_config_data = {
+                "name": history_item_name,
+                "project_dirs": list(self.project_dirs),
+                "output_dir": self.output_dir_path,
+                "base_filename": self.base_filename_str,
+                "excluded_subdirs": self.excluded_subdirs_list,
+                "excluded_files": self.excluded_files_list,
+                "output_format": self.output_format_str,
+                "verbose": self.verbose_state,
+                "timestamp": datetime.now().isoformat()
+            }
+            self.add_to_history(current_config_data)
+        
+        # Reset thread vars
+        self.worker_thread = None
+        self.doc_worker = None
+
+    @Slot(str)
+    def _on_documentation_error(self, error_message):
+        self.output_text_edit.appendPlainText(f"Đã xảy ra lỗi nghiêm trọng:\n{error_message}")
+        self.status_label.setText("Lỗi")
+        self.progress_bar.setRange(0,100)
+        self.progress_bar.setValue(0) # Or some error indication
+        self._update_control_states(is_running=False)
+        self.last_main_output_file = None
+
+        # Reset thread vars
+        if self.worker_thread: # Neu thread con ton tai
+            self.worker_thread.quit() # Yeu cau thread dung
+            self.worker_thread.wait() # Cho thread dung han
+        self.worker_thread = None
+        self.doc_worker = None
+
+
+    # --- History Functions ---
+    def populate_history_listbox(self):
+        self.history_list_widget.clear()
         for item in self.history_data:
-            first_proj_dir = os.path.basename(item["project_dirs"][0]) if item.get("project_dirs") else "Khong TM"
+            first_proj_dir = os.path.basename(item["project_dirs"][0]) if item.get("project_dirs") else "Không TM"
             if len(item.get("project_dirs", [])) > 1:
                 first_proj_dir += " (+...)"
             
@@ -384,36 +470,41 @@ class ProjectDocApp:
                 timestamp_str = "N/A"
             
             display_name = item.get("name", first_proj_dir)
-            if not display_name or display_name == "Khong TM": display_name = first_proj_dir
-
+            if not display_name or display_name == "Không TM": display_name = first_proj_dir
+            
             display_text = f"{display_name} [{timestamp_str}]"
-            self.history_listbox.insert(tk.END, display_text)
+            list_item = QListWidgetItem(display_text)
+            list_item.setData(Qt.ItemDataRole.UserRole, item) # Luu full data vao item
+            self.history_list_widget.addItem(list_item)
 
-    def load_history_from_file(self): # Tai LS tu file
+    def load_history_from_file(self):
         try:
-            if os.path.exists(self.history_file):
-                with open(self.history_file, "r", encoding="utf-8") as f:
+            if os.path.exists(self.history_file_path):
+                with open(self.history_file_path, "r", encoding="utf-8") as f:
                     self.history_data = json.load(f)
-                self.history_data.sort(key=lambda x: x.get("timestamp", ""), reverse=True) 
+                self.history_data.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
             else:
                 self.history_data = []
         except json.JSONDecodeError:
-            self.history_data = [] 
+            self.history_data = []
+            QMessageBox.warning(self, "Lỗi Lịch sử", "Tệp lịch sử bị lỗi và không thể đọc.")
         except Exception as e:
-            messagebox.showerror("Loi", f"Khong the tai lich su: {e}")
+            QMessageBox.critical(self, "Lỗi", f"Không thể tải lịch sử: {e}")
             self.history_data = []
         self.populate_history_listbox()
+        self._update_control_states()
 
-    def save_history_to_file(self): # Luu LS vao file
+
+    def save_history_to_file(self):
         try:
-            with open(self.history_file, "w", encoding="utf-8") as f:
+            with open(self.history_file_path, "w", encoding="utf-8") as f:
                 json.dump(self.history_data, f, indent=4, ensure_ascii=False)
         except Exception as e:
-            messagebox.showerror("Loi", f"Khong the luu lich su: {e}")
+            QMessageBox.critical(self, "Lỗi", f"Không thể lưu lịch sử: {e}")
 
-    def add_to_history(self, current_config): # Them muc vao LS
-        new_config_key_parts = sorted(current_config["project_dirs"]) + \
-                               [current_config["output_dir"], current_config["base_filename"]]
+    def add_to_history(self, current_config_data):
+        new_config_key_parts = sorted(current_config_data["project_dirs"]) + \
+                               [current_config_data["output_dir"], current_config_data["base_filename"]]
         new_config_key = "|".join(new_config_key_parts)
 
         filtered_history = []
@@ -424,217 +515,305 @@ class ProjectDocApp:
             if item_key != new_config_key:
                 filtered_history.append(item)
         self.history_data = filtered_history
-
-        self.history_data.insert(0, current_config) 
-
+        self.history_data.insert(0, current_config_data)
         if len(self.history_data) > MAX_HISTORY_ITEMS:
             self.history_data = self.history_data[:MAX_HISTORY_ITEMS]
-
         self.save_history_to_file()
         self.populate_history_listbox()
 
-    def load_selected_history_item(self): # Tai muc LS da chon
-        selected_indices = self.history_listbox.curselection()
-        if not selected_indices:
-            messagebox.showinfo("Thong Bao", "Vui long chon mot muc tu lich su.")
+    @Slot()
+    def load_selected_history_item(self):
+        selected_items = self.history_list_widget.selectedItems()
+        if not selected_items:
+            QMessageBox.information(self, "Thông Báo", "Vui lòng chọn một mục từ lịch sử.")
             return
         
-        try:
-            selected_index = selected_indices[0]
-            config_data = self.history_data[selected_index]
-
-            self.project_dirs = list(config_data.get("project_dirs", [])) 
-            self.project_dir_list.delete(0, tk.END)
-            for p_dir in self.project_dirs:
-                self.project_dir_list.insert(tk.END, p_dir)
-
-            self.output_dir_entry.delete(0, tk.END)
-            self.output_dir_entry.insert(0, config_data.get("output_dir", DEFAULT_OUTPUT_DIR))
-            self.output_dir = config_data.get("output_dir", DEFAULT_OUTPUT_DIR) 
-
-            self.base_filename_entry.delete(0, tk.END)
-            self.base_filename_entry.insert(0, config_data.get("base_filename", DEFAULT_BASE_FILENAME))
-
-            self.output_format.set(config_data.get("output_format", "txt"))
-            self.verbose.set(config_data.get("verbose", False))
-
-            self.excluded_subdirs = list(config_data.get("excluded_subdirs", DEFAULT_EXCLUDED_SUBDIRS))
-            self.excluded_subdirs_entry.delete(0, tk.END)
-            self.excluded_subdirs_entry.insert(0, ", ".join(self.excluded_subdirs))
-            
-            self.excluded_files = list(config_data.get("excluded_files", DEFAULT_EXCLUDED_FILES))
-            self.excluded_files_entry.delete(0, tk.END)
-            self.excluded_files_entry.insert(0, ", ".join(self.excluded_files))
-
-            self.tabview.set("Cau hinh") 
-            # messagebox.showinfo("Da Tai", "Cau hinh da duoc tai. Vui long kiem tra va chay.") # Bo TB
-        except IndexError:
-            messagebox.showerror("Loi", "Khong tim thay muc lich su tuong ung.")
-        except Exception as e:
-            messagebox.showerror("Loi", f"Loi khi tai lich su: {str(e)}")
-
-
-    def delete_selected_history_item(self): # Xoa muc LS da chon
-        selected_indices = self.history_listbox.curselection()
-        if not selected_indices:
-            messagebox.showinfo("Thong Bao", "Vui long chon mot muc de xoa.")
+        config_data = selected_items[0].data(Qt.ItemDataRole.UserRole) # Lay data tu item
+        if not config_data:
+            QMessageBox.critical(self, "Lỗi", "Không thể lấy dữ liệu từ mục lịch sử đã chọn.")
             return
 
-        confirm = messagebox.askyesno("Xac Nhan Xoa", "Ban co chac chan muon xoa muc lich su nay?")
-        if confirm:
+        self.project_dirs = list(config_data.get("project_dirs", []))
+        self.project_dir_list_widget.clear()
+        for p_dir in self.project_dirs:
+            self.project_dir_list_widget.addItem(QListWidgetItem(p_dir))
+
+        self.output_dir_path = config_data.get("output_dir", DEFAULT_OUTPUT_DIR)
+        self.output_dir_entry.setText(self.output_dir_path)
+        
+        self.base_filename_str = config_data.get("base_filename", DEFAULT_BASE_FILENAME)
+        self.base_filename_entry.setText(self.base_filename_str)
+
+        self.output_format_str = config_data.get("output_format", "txt")
+        if self.output_format_str == "markdown": self.md_radio.setChecked(True)
+        else: self.txt_radio.setChecked(True)
+        
+        self.verbose_state = config_data.get("verbose", False)
+        self.verbose_checkbox.setChecked(self.verbose_state)
+
+        self.excluded_subdirs_list = list(config_data.get("excluded_subdirs", DEFAULT_EXCLUDED_SUBDIRS))
+        self.excluded_subdirs_entry.setText(", ".join(self.excluded_subdirs_list))
+        
+        self.excluded_files_list = list(config_data.get("excluded_files", DEFAULT_EXCLUDED_FILES))
+        self.excluded_files_entry.setText(", ".join(self.excluded_files_list))
+
+        self.tab_widget.setCurrentWidget(self.tab_widget.findChild(QWidget, "configTab"))
+        self._update_control_states()
+
+
+    @Slot()
+    def delete_selected_history_item(self):
+        selected_items = self.history_list_widget.selectedItems()
+        if not selected_items:
+            QMessageBox.information(self, "Thông Báo", "Vui lòng chọn một mục để xóa.")
+            return
+        
+        confirm = QMessageBox.question(self, "Xác Nhận Xóa", "Bạn có chắc chắn muốn xóa mục lịch sử này?",
+                                       QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                       QMessageBox.StandardButton.No)
+        if confirm == QMessageBox.StandardButton.Yes:
             try:
-                selected_index = selected_indices[0]
-                del self.history_data[selected_index]
+                # Xoa tu self.history_data truoc
+                config_to_delete = selected_items[0].data(Qt.ItemDataRole.UserRole)
+                self.history_data = [item for item in self.history_data if item != config_to_delete]
+                
                 self.save_history_to_file()
-                self.populate_history_listbox()
-                messagebox.showinfo("Da Xoa", "Muc lich su da duoc xoa.")
-            except IndexError:
-                 messagebox.showerror("Loi", "Khong tim thay muc lich su de xoa.")
+                self.populate_history_listbox() # Load lai listbox
+                QMessageBox.information(self, "Đã Xóa", "Mục lịch sử đã được xóa.")
+            except Exception as e:
+                 QMessageBox.critical(self, "Lỗi", f"Không thể xóa mục lịch sử: {str(e)}.")
+        self._update_control_states()
 
 
-    def delete_all_history(self): # Xoa toan bo LS
+    @Slot()
+    def delete_all_history(self):
         if not self.history_data:
-            messagebox.showinfo("Thong Bao", "Lich su trong.")
+            QMessageBox.information(self, "Thông Báo", "Lịch sử trống.")
             return
-        confirm = messagebox.askyesno("Xac Nhan Xoa Tat Ca", "Ban co chac chan muon xoa TOAN BO lich su chay?")
-        if confirm:
+        confirm = QMessageBox.question(self, "Xác Nhận Xóa Tất Cả", 
+                                       "Bạn có chắc chắn muốn xóa TOÀN BỘ lịch sử chạy?",
+                                       QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                       QMessageBox.StandardButton.No)
+        if confirm == QMessageBox.StandardButton.Yes:
             self.history_data = []
             self.save_history_to_file()
             self.populate_history_listbox()
-            messagebox.showinfo("Da Xoa", "Toan bo lich su da duoc xoa.")
-    # --- Het ham LS ---
+            QMessageBox.information(self, "Đã Xóa", "Toàn bộ lịch sử đã được xóa.")
+        self._update_control_states()
 
-    def run_documentation(self): # Bat dau tao doc
-        if not self.project_dirs:
-            messagebox.showerror("Loi", "Vui long chon it nhat mot thu muc du an.")
-            return
+    # --- Output Tab Functions ---
+    @Slot()
+    def copy_output_to_clipboard(self):
+        clipboard = QApplication.clipboard()
+        clipboard.setText(self.output_text_edit.toPlainText())
+        QMessageBox.information(self, "Đã sao chép", "Nội dung kết quả đã được sao chép.")
 
-        self.progress_var.set(0)
-        self.status_var.set("Dang xu ly...")
-        self.output_text.text.delete("1.0", tk.END)
-        self.open_folder_button.configure(state="disabled")
-        self.ai_studio_button.configure(state="disabled") 
-        self.last_main_output_file = None 
-
-        self.run_button.configure(state="disabled")
-        self.add_dir_btn.configure(state="disabled")
-        self.remove_dir_btn.configure(state="disabled")
-        self.browse_btn.configure(state="disabled")
-
-        output_dir_val = self.output_dir_entry.get()
-        base_filename_val = self.base_filename_entry.get()
-        output_format_val = self.output_format.get()
-        verbose_val = self.verbose.get()
-        
-        current_excluded_subdirs = [s.strip() for s in self.excluded_subdirs_entry.get().split(",") if s.strip()]
-        current_excluded_files = [f.strip() for f in self.excluded_files_entry.get().split(",") if f.strip()]
+    @Slot()
+    def clear_output_display(self):
+        self.output_text_edit.clear()
+        self.last_main_output_file = None
+        self._update_control_states()
 
 
-        def run_doc_thread():
-            self.root.after(0, lambda: self.tabview.set("Ket qua")) # Chuyen tab KQ
-            try:
-                (message, execution_time, num_files, num_folders,
-                errors, skipped_files, skipped_folders, output_paths_str) = tao_tai_lieu_du_an(
-                    self.project_dirs, current_excluded_subdirs, current_excluded_files, 
-                    base_filename_val, output_dir_val, verbose_val, output_format_val
-                )
-                formatted_output = format_output_for_tkinter(
-                    message, execution_time, num_files, num_folders,
-                    errors, skipped_files, skipped_folders, output_format_val
-                )
-                self.root.after(0, self.update_output, formatted_output)
-                self.root.after(0, self.update_status, f"Hoan tat! Tai lieu tai: {output_paths_str}")
-                self.root.after(0, self.progress_var.set, 100) 
-                self.root.after(0, lambda: self.open_folder_button.configure(state="normal"))
+    @Slot()
+    def open_output_folder_path(self):
+        path_to_open = self.output_dir_entry.text() # Lay tu UI
+        if path_to_open and os.path.isdir(path_to_open):
+            QDesktopServices.openUrl(f"file:///{os.path.normpath(path_to_open)}")
+        else:
+            QMessageBox.critical(self, "Lỗi", "Đường dẫn thư mục đầu ra không hợp lệ hoặc không tồn tại.")
 
-                all_output_files = [p.strip() for p in output_paths_str.split(",") if p.strip()]
-                if all_output_files:
-                    self.last_main_output_file = all_output_files[0] 
-                    self.root.after(0, lambda: self.ai_studio_button.configure(state="normal"))
-                else:
-                    self.last_main_output_file = None
-                    self.root.after(0, lambda: self.ai_studio_button.configure(state="disabled"))
-
-
-                is_successful_run = not errors or all("khong ton tai" in str(v).lower() or "not found" in str(v).lower() for v in errors.values())
-
-                if is_successful_run and self.project_dirs: 
-                    first_proj_dir_name = os.path.basename(self.project_dirs[0])
-                    history_item_name = f"{first_proj_dir_name} ({datetime.now().strftime('%d/%m %H:%M')})"
-                    if len(self.project_dirs) > 1:
-                        history_item_name = f"{first_proj_dir_name},... ({datetime.now().strftime('%d/%m %H:%M')})"
-
-                    current_config = {
-                        "name": history_item_name, 
-                        "project_dirs": list(self.project_dirs), 
-                        "output_dir": output_dir_val,
-                        "base_filename": base_filename_val,
-                        "excluded_subdirs": current_excluded_subdirs,
-                        "excluded_files": current_excluded_files,
-                        "output_format": output_format_val,
-                        "verbose": verbose_val,
-                        "timestamp": datetime.now().isoformat()
-                    }
-                    self.root.after(0, self.add_to_history, current_config)
-
-            except Exception as e:
-                self.root.after(0, self.update_output, f"Da xay ra loi: {str(e)}")
-                self.root.after(0, self.update_status, "Loi")
-                self.root.after(0, self.progress_var.set, 0)
-                self.root.after(0, lambda: self.ai_studio_button.configure(state="disabled")) 
-            finally:
-                self.root.after(0, lambda: self.run_button.configure(state="normal"))
-                self.root.after(0, lambda: self.add_dir_btn.configure(state="normal"))
-                self.root.after(0, lambda: self.remove_dir_btn.configure(state="normal"))
-                self.root.after(0, lambda: self.browse_btn.configure(state="normal"))
-
-        Thread(target=run_doc_thread, daemon=True).start() 
-
-    def update_output(self, text): # Cap nhat output
-        self.output_text.text.insert(tk.END, text + "\n")
-        self.output_text.text.see(tk.END)
-
-    def update_status(self, message): # Cap nhat status
-         self.status_var.set(message)
-
-    def copy_to_clipboard(self): # Sao chep ND
-        try:
-            self.root.clipboard_clear()
-            self.root.clipboard_append(self.output_text.text.get("1.0", tk.END))
-            messagebox.showinfo("Da sao chep", "Noi dung da duoc sao chep vao clipboard.")
-        except Exception as e:
-            messagebox.showerror("Loi", f"Khong the sao chep noi dung: {str(e)}")
-
-    def clear_output(self): # Xoa ND output
-        self.output_text.text.delete("1.0", tk.END)
-        self.open_folder_button.configure(state="disabled") 
-        self.ai_studio_button.configure(state="disabled") 
-        self.last_main_output_file = None 
-
-    def open_output_folder(self): # Mo TM out
-       output_path_to_open = self.output_dir_entry.get() 
-       if output_path_to_open and os.path.isdir(output_path_to_open):
-           try:
-               if os.name == 'nt':
-                   subprocess.Popen(['explorer', os.path.normpath(output_path_to_open)])
-               elif os.name == 'posix':
-                   subprocess.Popen(['open', os.path.normpath(output_path_to_open)])
-               else:
-                   messagebox.showwarning("Khong ho tro", "HDH cua ban khong duoc ho tro de mo thu muc.")
-           except Exception as e:
-              messagebox.showerror("Loi", f"Khong the mo thu muc: {str(e)}")
-       else:
-         messagebox.showerror("Loi", "Duong dan thu muc dau ra khong hop le hoac khong ton tai.")
-
-    def open_ai_studio_and_copy_path(self): # Mo AI Studio va copy path
-        ai_studio_url = "https://aistudio.google.com/prompts/new_chat"
+    @Slot()
+    def open_ai_studio_and_copy(self):
+        ai_studio_url = "https://aistudio.google.com/app/prompts/new_chat" #VD
         if self.last_main_output_file and os.path.exists(self.last_main_output_file):
             try:
-                webbrowser.open_new_tab(ai_studio_url)
-                self.root.clipboard_clear()
-                self.root.clipboard_append(self.last_main_output_file)
-                
+                QDesktopServices.openUrl(ai_studio_url)
+                clipboard = QApplication.clipboard()
+                clipboard.setText(self.last_main_output_file)
+                # Thong bao da copy co the hoi phien, user se paste vao AI studio
             except Exception as e:
-                messagebox.showerror("Loi", f"Khong the mo AI Studio hoac sao chep duong dan: {str(e)}")
+                QMessageBox.critical(self, "Lỗi", f"Không thể mở AI Studio hoặc sao chép đường dẫn: {str(e)}")
         else:
-            messagebox.showwarning("Thong Bao", "Khong tim thay tep tai lieu de sao chep duong dan.")
+            QMessageBox.warning(self, "Thông Báo", "Không tìm thấy tệp tài liệu để sao chép đường dẫn.")
+
+
+    def _update_control_states(self, is_running=False):
+        # Config tab
+        self.add_dir_btn.setEnabled(not is_running)
+        self.remove_dir_btn.setEnabled(not is_running and self.project_dir_list_widget.count() > 0)
+        self.output_dir_entry.setEnabled(not is_running)
+        self.browse_output_btn.setEnabled(not is_running)
+        self.base_filename_entry.setEnabled(not is_running)
+        self.txt_radio.setEnabled(not is_running)
+        self.md_radio.setEnabled(not is_running)
+        self.verbose_checkbox.setEnabled(not is_running)
+        self.run_button.setEnabled(not is_running and self.project_dir_list_widget.count() > 0)
+
+        # Advanced tab
+        self.excluded_subdirs_entry.setEnabled(not is_running)
+        self.excluded_files_entry.setEnabled(not is_running)
+
+        # History tab
+        has_history = self.history_list_widget.count() > 0
+        has_selection = len(self.history_list_widget.selectedItems()) > 0
+        self.load_history_btn.setEnabled(not is_running and has_selection)
+        self.delete_history_btn.setEnabled(not is_running and has_selection)
+        self.delete_all_history_btn.setEnabled(not is_running and has_history)
+
+        # Output tab
+        has_output_text = bool(self.output_text_edit.toPlainText())
+        self.copy_output_btn.setEnabled(has_output_text)
+        self.clear_output_btn.setEnabled(has_output_text)
+        self.ai_studio_btn.setEnabled(bool(self.last_main_output_file))
+        self.open_output_folder_btn.setEnabled(os.path.isdir(self.output_dir_entry.text()))
+
+
+    def _apply_qss_styles(self):
+        # Font Mac dinh
+        default_font = QFont("Segoe UI", NORMAL_FONT_SIZE)
+        QApplication.setFont(default_font)
+        
+        # QSS (Mot phan, co the dat trong file rieng)
+        qss = f"""
+            QWidget {{
+                color: {TEXT_COLOR};
+                font-size: {NORMAL_FONT_SIZE}pt;
+            }}
+            QMainWindow {{
+                background: transparent; /* Cho phep border-radius cua mainContainerWidget hien thi */
+            }}
+            QWidget#mainContainerWidget {{ /* Da set trong BaseMainWindow */
+                /* background-color: {WINDOW_BG_COLOR}; */ /* Day la bien bi thieu */
+                /* border-radius: 10px; */
+            }}
+            QWidget#mainContentWidget {{
+                 background-color: transparent; /* Cho phep BG cua BaseMainWindow hien thi */
+                 padding: 10px;
+            }}
+             QWidget#contentAreaWithBackground {{
+                border-bottom-left-radius: 10px;
+                border-bottom-right-radius: 10px;
+                background-color: transparent; /* Cho phep BG cua BaseMainWindow hien thi */
+            }}
+            QTabWidget::pane {{
+                border: 1px solid {INPUT_BORDER_COLOR};
+                border-radius: 8px;
+                background-color: {CONTAINER_BG_COLOR};
+                padding: 10px;
+            }}
+            QTabBar::tab {{
+                background: rgba(255,255,255,0.1);
+                border: 1px solid {INPUT_BORDER_COLOR};
+                border-bottom: none; 
+                padding: 8px 15px;
+                margin-right: 2px;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+                color: {SUBTEXT_COLOR};
+            }}
+            QTabBar::tab:selected {{
+                background: {CONTAINER_BG_COLOR}; /* Giong pane */
+                color: {TEXT_COLOR};
+                font-weight: bold;
+            }}
+            QTabBar::tab:hover {{
+                background: rgba(255,255,255,0.15);
+            }}
+            QGroupBox {{
+                background-color: rgba(255,255,255,0.03); /* Mau nen nhe cho groupbox */
+                border: 1px solid {INPUT_BORDER_COLOR};
+                border-radius: 8px;
+                margin-top: 10px; /* Cho title */
+                padding: 15px 10px 10px 10px; /* top padding cho title */
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 5px 0 5px;
+                left: 10px;
+                color: {SUBTEXT_COLOR};
+                font-size: {NORMAL_FONT_SIZE + 1}pt;
+                font-weight: bold;
+            }}
+            QLineEdit, QPlainTextEdit, QListWidget {{
+                background-color: {INPUT_BG_COLOR};
+                border: 1px solid {INPUT_BORDER_COLOR};
+                border-radius: 6px;
+                padding: 8px;
+            }}
+            QLineEdit:focus, QPlainTextEdit:focus, QListWidget:focus {{
+                border: 1px solid {INPUT_FOCUS_BORDER_COLOR};
+            }}
+            QListWidget::item:selected {{
+                background-color: {ACCENT_COLOR};
+                color: white;
+            }}
+            QPushButton {{
+                background-color: {PRIMARY_COLOR};
+                border: none;
+                border-radius: 6px;
+                padding: 8px 15px;
+                min-height: 20px; /* Dam bao chieu cao nut */
+            }}
+            QPushButton:hover {{
+                background-color: {HOVER_COLOR};
+            }}
+            QPushButton:pressed {{
+                background-color: {PRIMARY_COLOR}; /* Hoac mot mau dam hon */
+            }}
+            QPushButton:disabled {{
+                background-color: rgba(80,80,80,0.5);
+                color: {SUBTEXT_COLOR};
+            }}
+            QPushButton#runButton {{
+                background-color: {SUCCESS_COLOR};
+                font-size: {HEADER_FONT_SIZE - 2}pt;
+                font-weight: bold;
+                padding: 10px 20px;
+            }}
+            QPushButton#runButton:hover {{
+                background-color: {QColor(SUCCESS_COLOR).lighter(120).name()};
+            }}
+            QPushButton#primaryButton {{ background-color: {PRIMARY_COLOR}; }}
+            QPushButton#primaryButton:hover {{ background-color: {HOVER_COLOR}; }}
+            QPushButton#secondaryButton {{ background-color: {QColor(PRIMARY_COLOR).darker(120).name()}; }}
+            QPushButton#secondaryButton:hover {{ background-color: {PRIMARY_COLOR}; }}
+            QPushButton#accentButton {{ background-color: {ACCENT_COLOR}; }}
+            QPushButton#accentButton:hover {{ background-color: {QColor(ACCENT_COLOR).lighter(120).name()}; }}
+            QPushButton#warningButton {{ background-color: {WARNING_COLOR}; color: black; }}
+            QPushButton#warningButton:hover {{ background-color: {QColor(WARNING_COLOR).lighter(120).name()}; }}
+            QPushButton#errorButton {{ background-color: {ERROR_COLOR}; }}
+            QPushButton#errorButton:hover {{ background-color: {QColor(ERROR_COLOR).lighter(120).name()}; }}
+
+            QRadioButton::indicator, QCheckBox::indicator {{
+                width: 16px; height: 16px; border-radius: 3px;
+            }}
+            QRadioButton::indicator {{ border-radius: 8px; }}
+            QRadioButton::indicator:checked, QCheckBox::indicator:checked {{
+                background-color: {ACCENT_COLOR};
+            }}
+            QProgressBar {{
+                border: 1px solid {INPUT_BORDER_COLOR};
+                border-radius: 4px;
+                text-align: center;
+                background-color: {INPUT_BG_COLOR};
+            }}
+            QProgressBar::chunk {{
+                background-color: {SUCCESS_COLOR};
+                border-radius: 3px;
+                margin: 0.5px;
+            }}
+            QFrame#statusBar {{
+                border-top: 1px solid {INPUT_BORDER_COLOR};
+                background-color: transparent; /* Nền của status bar giống nền chính */
+            }}
+            QLabel#statusLabel {{
+                color: {SUBTEXT_COLOR};
+                font-size: {SMALL_FONT_SIZE}pt;
+            }}
+        """
+        self.setStyleSheet(qss)
+
+    def closeEvent(self, event):
+        super().closeEvent(event) 
