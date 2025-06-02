@@ -6,4 +6,4 @@ moitruongao/
 *.log
 .DS_Store 
 .vscode/
-doc_tool_history.json/
+*.doc_tool_history.json
