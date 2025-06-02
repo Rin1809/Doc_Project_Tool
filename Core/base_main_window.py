@@ -1,8 +1,10 @@
+# Core/base_main_window.py
 import os
 import sys
+import json 
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel,
-    QSizePolicy, QGraphicsOpacityEffect
+    QSizePolicy, QGraphicsOpacityEffect, QMessageBox, QPushButton 
 )
 from PySide6.QtCore import Qt, QPoint, QRect, QSize, QPropertyAnimation, QEasingCurve, QAbstractAnimation, Slot
 from PySide6.QtGui import QPixmap, QIcon, QMouseEvent, QFont
@@ -12,19 +14,24 @@ from .constants import (
     WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT,
     WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT,
     ASSETS_DIR_NAME, DEFAULT_ICON_NAME, DEFAULT_BACKGROUND_NAME,
-    TITLE_BAR_BG_COLOR, WINDOW_BG_COLOR
+    WINDOW_BG_COLOR, CONFIG_FILE_NAME, DEFAULT_LANGUAGE,
+    NORMAL_FONT_SIZE 
 )
 from .custom_title_bar import CustomTitleBar
+from .translations import Translations 
 
 
 class BaseMainWindow(QMainWindow):
     def __init__(self, base_app_path):
         super().__init__()
-        self.base_app_path = base_app_path # path toi thu muc ung dung (Doc_Project_Tool)
+        self.base_app_path = base_app_path 
+        self.config_file_path = os.path.join(self.base_app_path, "Core", CONFIG_FILE_NAME) 
 
+        self._load_app_config() 
+        
         self._setup_window_properties()
         self._load_assets()
-        self._init_ui_elements()
+        self._init_ui_elements() # Goi ham da sua
         self._apply_initial_styles()
 
         self._is_dragging = False
@@ -39,13 +46,59 @@ class BaseMainWindow(QMainWindow):
         self.opacity_animation_open = None
         self.opacity_animation_close = None
 
-        self.setMouseTracking(True) # De bat su kien hover cho resize
+        self.setMouseTracking(True)
+        self.custom_title_bar.language_changed_signal.connect(self._handle_language_change) 
+
+    def _load_app_config(self):
+        try:
+            if os.path.exists(self.config_file_path):
+                with open(self.config_file_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                Translations.set_language(config.get("language", DEFAULT_LANGUAGE))
+                
+                geom_array = config.get("window_geometry")
+                if geom_array and len(geom_array) == 4:
+                    self._initial_geometry = QRect(*geom_array)
+                else:
+                    self._initial_geometry = QRect(100, 100, WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT) 
+                
+                self._initial_maximized = config.get("window_maximized", False)
+
+            else: 
+                Translations.set_language(DEFAULT_LANGUAGE)
+                self._initial_geometry = QRect(100, 100, WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT)
+                self._initial_maximized = False
+                self._save_app_config() 
+        except Exception as e:
+            print(f"Error loading config: {e}. Using default settings.")
+            Translations.set_language(DEFAULT_LANGUAGE)
+            self._initial_geometry = QRect(100, 100, WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT)
+            self._initial_maximized = False
+    
+    def _save_app_config(self):
+        config = {
+            "language": Translations.current_lang,
+            "window_geometry": self.normalGeometry().getRect() if self.isMaximized() else self.geometry().getRect(),
+            "window_maximized": self.isMaximized()
+        }
+        try:
+            os.makedirs(os.path.dirname(self.config_file_path), exist_ok=True)
+            with open(self.config_file_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=4, ensure_ascii=False)
+        except Exception as e:
+            print(Translations.get("config_file_save_error", path=self.config_file_path, error=str(e)))
+
 
     def _setup_window_properties(self):
         self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
-        self.resize(WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT)
+        if hasattr(self, '_initial_geometry'):
+            self.setGeometry(self._initial_geometry)
+        else: 
+            self.resize(WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT)
+
         self.setWindowFlag(Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setWindowTitle(Translations.get("app_window_title_default")) 
 
     def _load_assets(self):
         assets_path = os.path.join(self.base_app_path, ASSETS_DIR_NAME)
@@ -56,7 +109,7 @@ class BaseMainWindow(QMainWindow):
         self.background_image_path = os.path.join(assets_path, DEFAULT_BACKGROUND_NAME)
         self.original_pixmap = QPixmap(self.background_image_path)
         if self.original_pixmap.isNull():
-            print(f"Khong the tai hinh nen: {self.background_image_path}")
+            print(Translations.get("base_mw_bg_load_fail_console", path=self.background_image_path))
 
 
     def _init_ui_elements(self):
@@ -68,44 +121,54 @@ class BaseMainWindow(QMainWindow):
         self.overall_layout.setContentsMargins(0, 0, 0, 0)
         self.overall_layout.setSpacing(0)
 
-        self.custom_title_bar = CustomTitleBar(self)
+        self.custom_title_bar = CustomTitleBar(self) 
         self.overall_layout.addWidget(self.custom_title_bar)
 
-        self.content_area_with_background = QWidget() # Widget chua BG va content chinh
+        self.content_area_with_background = QWidget() 
         self.content_area_with_background.setObjectName("contentAreaWithBackground")
-        content_area_layout = QVBoxLayout(self.content_area_with_background)
-        content_area_layout.setContentsMargins(0,0,0,0)
-        content_area_layout.setSpacing(0)
         
-        self.background_label = QLabel(self.content_area_with_background)
+        # Layout cho content_area_with_background, se chua main_content_widget chinh
+        content_area_main_layout = QVBoxLayout(self.content_area_with_background)
+        content_area_main_layout.setContentsMargins(0,0,0,0)
+        content_area_main_layout.setSpacing(0)
+        
+        # BG label, la con truc tiep cua content_area_with_background
+        # kich thuoc & vi tri se dat thu cong, va dat o lop duoi cung
+        self.background_label = QLabel(self.content_area_with_background) 
         self.background_label.setObjectName("backgroundLabel")
         self.background_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
-        self.background_label.lower() # BG luon o duoi
 
         if self.original_pixmap.isNull():
-            self.background_label.setText("Khong tim thay hinh nen")
+            self.background_label.setText(Translations.get("base_mw_bg_not_found_ui")) 
             self.background_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        # Content chinh se duoc them vao content_area_layout boi lop con
-        self.main_content_widget = QWidget() # Placeholder cho lop con them tabwidget vao day
+        # main_content_widget (noi lop con se dat UI vao)
+        # Se duoc them vao content_area_main_layout de Qt qly kich thuoc
+        self.main_content_widget = QWidget() # Ko set parent, layout se lam viec do
         self.main_content_widget.setObjectName("mainContentWidget")
-        content_area_layout.addWidget(self.main_content_widget)
+        content_area_main_layout.addWidget(self.main_content_widget) # Them vao layout
 
         self.overall_layout.addWidget(self.content_area_with_background)
         
     def _apply_initial_styles(self):
-        # Style co ban, QSS chi tiet se o lop con hoac file rieng
+        font_family = "Segoe UI, Arial, sans-serif"
+        if Translations.current_lang == Translations.LANG_JA:
+            font_family = "Meiryo, Segoe UI, Arial, sans-serif"
+        
+        app_font = QFont(font_family, NORMAL_FONT_SIZE) 
+        QApplication.setFont(app_font)
+
         self.main_container_widget.setStyleSheet(f"background-color: {WINDOW_BG_COLOR}; border-radius: 10px;")
         if self.original_pixmap.isNull():
-             self.background_label.setStyleSheet(f"background-color: {WINDOW_BG_COLOR}; color: white; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;")
+             self.background_label.setStyleSheet(f"background-color: {WINDOW_BG_COLOR}; color: white; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; font-family: '{font_family}';") 
         else:
              self.background_label.setStyleSheet("border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;")
-        self.main_content_widget.setStyleSheet("background-color: transparent;")
+        self.main_content_widget.setStyleSheet("background-color: transparent;") # Quan trong de BG hien thi
+        self.custom_title_bar._apply_styles() 
 
 
     def _update_background_pixmap(self):
         if hasattr(self, 'background_label') and not self.original_pixmap.isNull():
-            # Kich thuoc cua content_area_with_background
             bg_container_size = self.content_area_with_background.size()
             if bg_container_size.width() <= 0 or bg_container_size.height() <= 0:
                 return
@@ -116,23 +179,33 @@ class BaseMainWindow(QMainWindow):
                 Qt.SmoothTransformation
             )
             self.background_label.setPixmap(scaled_pixmap)
+            # BG label van fill content_area_with_background nhu truoc
             self.background_label.setGeometry(0, 0, bg_container_size.width(), bg_container_size.height())
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self._update_background_pixmap()
-        # Dieu chinh vi tri content_widget de no nam tren background_label
+        self._update_background_pixmap() # BG van update
+        
+        # main_content_widget gio nam trong layout roi, Qt tu qly size
+        # Chi can dam bao thu tu lop (stacking order) cho dung
         if hasattr(self, 'main_content_widget') and hasattr(self, 'background_label'):
-            self.main_content_widget.setGeometry(self.background_label.geometry())
-            self.main_content_widget.raise_()
+            # self.main_content_widget.setGeometry(self.content_area_with_background.rect()) # Dong nay ko can thiet nua
+            self.main_content_widget.raise_() # Dam bao main_content_widget luon o tren cung
+            self.background_label.lower()     # Dam bao background_label luon o duoi cung
 
 
     def showEvent(self, event):
         super().showEvent(event)
-        self._update_background_pixmap()
+        if hasattr(self, '_initial_maximized') and self._initial_maximized:
+            self.showMaximized()
+            if hasattr(self.custom_title_bar, 'btn_maximize_restore'): 
+                 self.custom_title_bar.btn_maximize_restore.setText("▫")
+
+        self._update_background_pixmap() # Update BG
         if hasattr(self, 'main_content_widget') and hasattr(self, 'background_label'):
-             self.main_content_widget.setGeometry(self.background_label.geometry())
-             self.main_content_widget.raise_()
+             # self.main_content_widget.setGeometry(self.content_area_with_background.rect()) # Dong nay ko can thiet nua
+             self.main_content_widget.raise_() # Dam bao main_content_widget luon o tren
+             self.background_label.lower()     # Dam bao background_label luon o duoi
 
         if not self._first_show_animation_done:
             self._first_show_animation_done = True
@@ -170,13 +243,15 @@ class BaseMainWindow(QMainWindow):
                 event.accept()
                 return
             
-            interactive_widgets_on_title = self.custom_title_bar.findChildren(QWidget) # rong hon
+            interactive_widgets_on_title = (
+                self.custom_title_bar.findChildren(QPushButton) +
+                [self.custom_title_bar.lang_combo] 
+            )
             is_on_interactive_title_widget = False
             for child_widget in interactive_widgets_on_title:
+                if child_widget == self.custom_title_bar.title_label: continue 
+
                 if child_widget.isVisible() and child_widget.geometry().contains(self.custom_title_bar.mapFromGlobal(global_pos)):
-                    # Kiem tra xem co phai la QLabel ko, neu la title_label thi bo qua
-                    if isinstance(child_widget, QLabel) and child_widget == self.custom_title_bar.title_label:
-                        continue
                     is_on_interactive_title_widget = True
                     break
             
@@ -221,8 +296,21 @@ class BaseMainWindow(QMainWindow):
         if not (self._is_resizing or self._is_dragging):
             current_hover_edge = self._get_current_resize_edge(local_pos)
             is_on_title_bar_geom = self.custom_title_bar.geometry().contains(local_pos)
-
-            if is_on_title_bar_geom: # Neu tren title bar, ko doi cursor (tru khi la TOP_EDGE)
+            
+            is_on_interactive_title_widget = False
+            interactive_widgets_on_title = (
+                self.custom_title_bar.findChildren(QPushButton) +
+                [self.custom_title_bar.lang_combo]
+            )
+            for child_widget in interactive_widgets_on_title:
+                 if child_widget == self.custom_title_bar.title_label: continue
+                 if child_widget.isVisible() and child_widget.geometry().contains(self.custom_title_bar.mapFromGlobal(event.globalPosition().toPoint())):
+                    is_on_interactive_title_widget = True
+                    break
+            
+            if is_on_interactive_title_widget:
+                self.unsetCursor()
+            elif is_on_title_bar_geom:
                  if current_hover_edge & TOP_EDGE : self.setCursor(Qt.SizeVerCursor)
                  else: self.unsetCursor()
             elif current_hover_edge == (TOP_EDGE | LEFT_EDGE) or current_hover_edge == (BOTTOM_EDGE | RIGHT_EDGE):
@@ -254,7 +342,29 @@ class BaseMainWindow(QMainWindow):
                 return
         super().mouseReleaseEvent(event)
 
+    def retranslate_base_ui(self): 
+        self.setWindowTitle(Translations.get("app_window_title_default"))
+        self.custom_title_bar.retranslate_ui()
+        if self.original_pixmap.isNull():
+            self.background_label.setText(Translations.get("base_mw_bg_not_found_ui"))
+        self._apply_initial_styles() 
+
+
+    @Slot(str)
+    def _handle_language_change(self, lang_code): 
+        Translations.set_language(lang_code)
+        self.retranslate_base_ui() 
+        
+        if hasattr(self, 'retranslate_app_specific_ui'):
+            self.retranslate_app_specific_ui()
+        
+        self._save_app_config() 
+
     def closeEvent(self, event):
+        if not self._animation_is_closing_flag and \
+           not (self.opacity_animation_close and self.opacity_animation_close.state() == QAbstractAnimation.State.Running) :
+            self._save_app_config() 
+
         if self._animation_is_closing_flag:
             event.accept()
             return
@@ -266,14 +376,14 @@ class BaseMainWindow(QMainWindow):
             self.opacity_animation_close.finished.connect(self._handle_close_animation_finished)
 
         if self.opacity_animation_close.state() == QAbstractAnimation.State.Running:
-            self.opacity_animation_close.stop() # Dung anim hien tai neu co
+            self.opacity_animation_close.stop() 
 
         self.opacity_animation_close.setStartValue(self.windowOpacity())
         self.opacity_animation_close.setEndValue(0.0)
         self.opacity_animation_close.start()
-        event.ignore() # Bo qua su kien close goc, se close sau khi anim xong
+        event.ignore() 
 
     @Slot()
     def _handle_close_animation_finished(self):
         self._animation_is_closing_flag = True
-        self.close() # Bay gio moi close that
+        self.close() 

@@ -1,39 +1,29 @@
 import os
 import time
-from .constants import SUPPORTED_FILE_EXTENSIONS # Import hang
+from .constants import SUPPORTED_FILE_EXTENSIONS 
+from .translations import Translations 
 
 # Ham chinh tao TLDA
 def tao_tai_lieu_du_an(duong_dan_thu_muc, thu_muc_con_loai_tru=None, tep_loai_tru=None, ten_tep_co_so="tai_lieu_du_an", thu_muc_dau_ra=".", verbose=False, output_format="txt"):
-    # Tao doc tu 1+ TM nguon.
-    # Args:
-    #   duong_dan_thu_muc (list/tuple): DS duong dan TMDA.
-    #   thu_muc_con_loai_tru (list, opt): DS ten TM con loai tru. MD None.
-    #   tep_loai_tru (list, opt): DS duoi tep/ten tep loai tru. MD None.
-    # Returns:
-    #   tuple: (thong bao, t_gian_thuc_thi, so_tep_xu_ly, so_TM_xu_ly, loi, tep_bo_qua, TM_bo_qua, duong_dan_tep_dau_ra)
-    # Raises:
-    #   TypeError, ValueError
-
     # KTr dau vao
     if not isinstance(duong_dan_thu_muc, (list, tuple)):
-        raise TypeError("duong_dan_thu_muc phai la list/tuple") # Loi kieu
+        raise TypeError(Translations.get("applogic_err_path_type")) 
     if not duong_dan_thu_muc:
-        raise ValueError("duong_dan_thu_muc khong rong") # Loi DS rong
+        raise ValueError(Translations.get("applogic_err_path_empty")) 
     if output_format not in ("txt", "markdown"):
-        raise ValueError("output_format phai la 'txt'/'markdown'") # Loi fmt
+        raise ValueError(Translations.get("applogic_err_output_format")) 
 
-    start_time = time.time() # Ghi tg start
+    start_time = time.time() 
 
     if thu_muc_con_loai_tru is None:
-        thu_muc_con_loai_tru = [] # Khoi tao DS TM loai tru
+        thu_muc_con_loai_tru = [] 
     if tep_loai_tru is None:
-        tep_loai_tru = [] # Khoi tao DS tep loai tru
+        tep_loai_tru = [] 
 
-    # Tao set tim nhanh
     tep_loai_tru_set = set(tep_loai_tru)
     thu_muc_con_loai_tru_set = set(thu_muc_con_loai_tru)
 
-    os.makedirs(thu_muc_dau_ra, exist_ok=True) # Tao TM out
+    os.makedirs(thu_muc_dau_ra, exist_ok=True) 
 
     total_files_processed = 0
     total_folders_processed = 0
@@ -42,9 +32,9 @@ def tao_tai_lieu_du_an(duong_dan_thu_muc, thu_muc_con_loai_tru=None, tep_loai_tr
     all_skipped_folders = []
     all_output_paths = []
 
-    for duong_dan in duong_dan_thu_muc: # Lap tung path
+    for duong_dan in duong_dan_thu_muc: 
         if not os.path.isdir(duong_dan):
-            all_errors[duong_dan] = "Thu muc khong ton tai"
+            all_errors[duong_dan] = Translations.get("applogic_folder_not_exist_val") # Dich
             continue
 
         ten_thu_muc_du_an = os.path.basename(duong_dan)
@@ -55,7 +45,7 @@ def tao_tai_lieu_du_an(duong_dan_thu_muc, thu_muc_con_loai_tru=None, tep_loai_tr
         ten_file = os.path.join(thu_muc_dau_ra_du_an, f"{ten_tep_co_so}{file_extension}")
 
         count = 1
-        while os.path.exists(ten_file): # Tranh ghi de
+        while os.path.exists(ten_file): 
             ten_file = os.path.join(thu_muc_dau_ra_du_an, f"{ten_tep_co_so} {count}{file_extension}")
             count += 1
         all_output_paths.append(os.path.abspath(ten_file))
@@ -66,22 +56,22 @@ def tao_tai_lieu_du_an(duong_dan_thu_muc, thu_muc_con_loai_tru=None, tep_loai_tr
         skipped_files_list = []
         skipped_folders_list = []
 
-        with open(ten_file, "w", encoding="utf-8") as outfile: # Mo tep out
+        with open(ten_file, "w", encoding="utf-8") as outfile: 
             if output_format == "markdown":
-                outfile.write(f"# Du an: {ten_thu_muc_du_an} - ...\n\n") # Tieu de md
+                outfile.write(Translations.get("applogic_project_title_md", project_name=ten_thu_muc_du_an) + "\n\n") # Dich
             else:
-                outfile.write(f"Du an: {ten_thu_muc_du_an} - ...\n\n") # Tieu de txt
+                outfile.write(Translations.get("applogic_project_title_txt", project_name=ten_thu_muc_du_an) + "\n\n") # Dich
 
-            def viet_cau_truc_thu_muc(thu_muc_goc, indent_level=0): # De quy CT TM
+            def viet_cau_truc_thu_muc(thu_muc_goc, indent_level=0): 
                 nonlocal num_folders_processed
                 thut_le = ("│   " * indent_level + "├── ") if output_format == "txt" else ("    " * indent_level + "- ")
 
                 try:
-                    entries = sorted(os.scandir(thu_muc_goc), key=lambda e: (not e.is_dir(), e.name.lower())) # Sap xep
+                    entries = sorted(os.scandir(thu_muc_goc), key=lambda e: (not e.is_dir(), e.name.lower())) 
                     for entry in entries:
                         if entry.is_dir(follow_symlinks=False):
                             if entry.name in thu_muc_con_loai_tru_set:
-                                outfile.write(thut_le + f"{entry.name}/ (Ko liet ke)\n")
+                                outfile.write(thut_le + f"{entry.name}{Translations.get('applogic_excluded_suffix')}\n") # Dich
                                 skipped_folders_list.append(os.path.relpath(entry.path, duong_dan))
                                 continue
                             outfile.write(thut_le + f"{entry.name}/\n")
@@ -93,19 +83,19 @@ def tao_tai_lieu_du_an(duong_dan_thu_muc, thu_muc_con_loai_tru=None, tep_loai_tr
                                 continue
                             outfile.write(thut_le + f"{entry.name}\n")
                 except FileNotFoundError:
-                    outfile.write(thut_le + f"{os.path.basename(thu_muc_goc)}/ (Khong tim thay)\n")
-                    errors[os.path.basename(thu_muc_goc)] = "Khong tim thay thu muc"
+                    outfile.write(thut_le + f"{os.path.basename(thu_muc_goc)}{Translations.get('applogic_dir_not_found_suffix')}\n") # Dich
+                    errors[os.path.basename(thu_muc_goc)] = Translations.get("applogic_folder_not_exist_val") # Dich
                 except PermissionError:
-                    outfile.write(thut_le + f"{os.path.basename(thu_muc_goc)}/ (Khong co quyen)\n")
-                    errors[os.path.basename(thu_muc_goc)] = "Khong co quyen truy cap"
+                    outfile.write(thut_le + f"{os.path.basename(thu_muc_goc)}{Translations.get('applogic_dir_permission_suffix')}\n") # Dich
+                    errors[os.path.basename(thu_muc_goc)] = Translations.get("applogic_permission_denied_val") # Dich
                 except OSError as e:
-                    outfile.write(thut_le + f"{os.path.basename(thu_muc_goc)}/ (Loi HDH: {e})\n")
-                    errors[os.path.basename(thu_muc_goc)] = f"Loi he thong: {e}"
+                    outfile.write(thut_le + f"{os.path.basename(thu_muc_goc)}{Translations.get('applogic_dir_os_error_suffix', error=e)}\n") # Dich
+                    errors[os.path.basename(thu_muc_goc)] = Translations.get("applogic_os_error_val", error=e) # Dich
 
-            def viet_noi_dung_tep(thu_muc_goc): # De quy ND tep
+            def viet_noi_dung_tep(thu_muc_goc): 
                 nonlocal num_files_processed
                 try:
-                    entries = sorted(os.scandir(thu_muc_goc), key=lambda e: (not e.is_dir(), e.name.lower())) # Sap xep
+                    entries = sorted(os.scandir(thu_muc_goc), key=lambda e: (not e.is_dir(), e.name.lower())) 
                     for entry in entries:
                         if entry.is_dir(follow_symlinks=False):
                             if entry.name in thu_muc_con_loai_tru_set:
@@ -113,51 +103,49 @@ def tao_tai_lieu_du_an(duong_dan_thu_muc, thu_muc_con_loai_tru=None, tep_loai_tr
                             viet_noi_dung_tep(entry.path)
                         elif entry.is_file(follow_symlinks=False):
                             if entry.name.endswith(tuple(tep_loai_tru)) or entry.name in tep_loai_tru_set:
-                                # Da skip o viet_cau_truc, nhung check lai cho chac
                                 if os.path.relpath(entry.path, duong_dan) not in skipped_files_list:
                                      skipped_files_list.append(os.path.relpath(entry.path, duong_dan))
                                 continue
                             if entry.name.endswith(SUPPORTED_FILE_EXTENSIONS):
-                                outfile.write(f"\n**{os.path.relpath(entry.path, duong_dan)}**\n\n") # Path tuong doi voi TM goc DA
+                                outfile.write(f"\n**{os.path.relpath(entry.path, duong_dan)}**\n\n") 
                                 outfile.write("```")
                                 lang = ""
                                 if entry.name.endswith('.py'): lang = "python"
-                                # Them cac lang khac neu can
                                 outfile.write(f"{lang}\n")
 
                                 try:
-                                    with open(entry.path, "r", encoding="utf-8", errors="surrogateescape") as infile: # errors='surrogateescape'
+                                    with open(entry.path, "r", encoding="utf-8", errors="surrogateescape") as infile: 
                                         outfile.write(infile.read())
                                     num_files_processed += 1
-                                except UnicodeDecodeError: # Neu surrogateescape van loi
+                                except UnicodeDecodeError: 
                                     try:
                                         with open(entry.path, "r", encoding="latin-1") as infile:
                                             outfile.write(infile.read())
                                         num_files_processed += 1
-                                        outfile.write("\n\n_(Luu y: Tep co the ko ma hoa UTF-8, ND doc bang latin-1)_\n")
+                                        outfile.write(Translations.get("applogic_encoding_warning_note")) # Dich
                                     except Exception as e_latin:
-                                        outfile.write(f"Khong the doc tep {entry.path}: {e_latin}\n")
+                                        outfile.write(Translations.get("applogic_cannot_read_file_note_generic", path=entry.path, error=e_latin) + "\n") # Dich
                                         errors[entry.path] = str(e_latin)
                                 except FileNotFoundError:
-                                    outfile.write(f"Khong tim thay tep {entry.path}...\n")
-                                    errors[entry.path] = "Khong tim thay tep"
+                                    outfile.write(Translations.get("applogic_file_not_found_note", path=entry.path) + "\n") # Dich
+                                    errors[entry.path] = Translations.get("applogic_file_not_found_val") # Dich
                                 except PermissionError:
-                                    outfile.write(f"Khong co quyen truy cap tep {entry.path}...\n")
-                                    errors[entry.path] = "Khong co quyen truy cap"
+                                    outfile.write(Translations.get("applogic_permission_denied_note", path=entry.path) + "\n") # Dich
+                                    errors[entry.path] = Translations.get("applogic_permission_denied_val") # Dich
                                 except OSError as e_os:
-                                    outfile.write(f"Loi doc tep {entry.path}: {e_os}\n")
-                                    errors[entry.path] = f"Loi he thong: {e_os}"
+                                    outfile.write(Translations.get("applogic_os_error_reading_file_note", path=entry.path, error=e_os) + "\n") # Dich
+                                    errors[entry.path] = Translations.get("applogic_os_error_val", error=e_os) # Dich
                                 outfile.write("\n```\n\n")
                 except FileNotFoundError:
-                    errors[thu_muc_goc] = "Khong tim thay thu muc (khi doc ND)" # Phan biet loi
+                    errors[thu_muc_goc] = Translations.get("applogic_dir_not_found_content_val") # Dich
                 except PermissionError:
-                    errors[thu_muc_goc] = "Khong co quyen truy cap (khi doc ND)"
+                    errors[thu_muc_goc] = Translations.get("applogic_dir_permission_content_val") # Dich
                 except OSError as e:
-                    errors[thu_muc_goc] = f"Loi he thong (khi doc ND): {e}"
+                    errors[thu_muc_goc] = Translations.get("applogic_os_error_content_val", error=e) # Dich
 
-            outfile.write(f"{os.path.basename(duong_dan)}/\n") # Ghi ten TM goc
+            outfile.write(f"{os.path.basename(duong_dan)}/\n") 
             viet_cau_truc_thu_muc(duong_dan)
-            outfile.write("\n--- START CONTENT ---\n") # Phan cach CT TM va ND
+            outfile.write("\n--- START CONTENT ---\n") 
             viet_noi_dung_tep(duong_dan)
             outfile.write("\n--- END CONTENT ---\n\n")
 
@@ -169,9 +157,9 @@ def tao_tai_lieu_du_an(duong_dan_thu_muc, thu_muc_con_loai_tru=None, tep_loai_tr
 
     end_time = time.time()
     execution_time = end_time - start_time
-    message = f"Tai lieu du an da tao trong {thu_muc_dau_ra}"
+    message = Translations.get("applogic_docs_created_in_msg", output_dir=thu_muc_dau_ra) # Dich
     if verbose:
-        message += f"\nDa xu ly {total_files_processed} tep va {total_folders_processed} thu muc."
+        message += Translations.get("applogic_verbose_processed_msg", files=total_files_processed, folders=total_folders_processed) # Dich
 
     output_paths_str = ", ".join(all_output_paths)
     return (message, execution_time, total_files_processed, total_folders_processed,
