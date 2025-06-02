@@ -7,3 +7,4 @@ moitruongao/
 .DS_Store  # Dành cho macOS
 .vscode/   # Nếu bạn dùng VS Code
 Core/doc_tool_history.json
+Core\doc_tool_history.json
