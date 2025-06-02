@@ -102,9 +102,9 @@ class Translations:
             LANG_JA: "詳細表示"
         },
         "run_button_text": {
-            LANG_VI: "🚀 Tạo Tài Liệu",
-            LANG_EN: "🚀 Generate Docs",
-            LANG_JA: "🚀 ドキュメント生成"
+            LANG_VI: "Tạo Tài Liệu",
+            LANG_EN: "Generate Docs",
+            LANG_JA: "ドキュメント生成"
         },
         # Advanced Tab
         "advanced_tab_title": {
