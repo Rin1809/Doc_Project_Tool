@@ -4,7 +4,6 @@ __pycache__/
 venv/
 moitruongao/
 *.log
-.DS_Store  # Dành cho macOS
-.vscode/   # Nếu bạn dùng VS Code
-Core/doc_tool_history.json
-Core\doc_tool_history.json
+.DS_Store 
+.vscode/
+doc_tool_history.json/
