@@ -1,6 +1,6 @@
 [
     {
-        "name": "Doc_Project_Tool (02/06 22:35)",
+        "name": "Doc_Project_Tool (02/06 23:25)",
         "project_dirs": [
             "E:\\pythonpj\\Doc_Project_Tool"
         ],
@@ -25,11 +25,12 @@
             ".rar",
             "ex.json",
             ".jpg",
-            ".mp3"
+            ".mp3",
+            ".md"
         ],
-        "output_format": "markdown",
+        "output_format": "txt",
         "verbose": true,
-        "timestamp": "2025-06-02T22:35:40.223294"
+        "timestamp": "2025-06-02T23:25:34.681508"
     },
     {
         "name": "autokeyboard (02/06 20:24)",
