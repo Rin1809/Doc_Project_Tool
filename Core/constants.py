@@ -1,31 +1,34 @@
 # Hang so cho UD
 
 # --- Ngon ngu ---
-DEFAULT_LANGUAGE = "vi" # Ngon ngu mac dinh neu config ko co
-CONFIG_FILE_NAME = "doc_tool_config.json" # Ten file config
+DEFAULT_LANGUAGE = "vi" 
+CONFIG_FILE_NAME = "doc_tool_config.json" 
 
-# Fonts (Kich thuoc co the dung cho QSS)
+# Fonts
 TITLE_FONT_SIZE = 18 
 HEADER_FONT_SIZE = 14
 NORMAL_FONT_SIZE = 10 
 SMALL_FONT_SIZE = 9
 
-# Mau sac (Dung cho QSS, co the dat ten theo vai tro)
-PRIMARY_COLOR = "rgb(75, 80, 115)" 
-ACCENT_COLOR = "rgb(96, 125, 199)" 
-HOVER_COLOR = "rgb(116, 145, 219)" 
-SUCCESS_COLOR = "rgb(90, 180, 90)"  
-WARNING_COLOR = "rgb(220, 160, 70)" 
-ERROR_COLOR = "rgb(200, 80, 80)"   
+# Mau sac - Stellar Poetic Theme
+WINDOW_BG_COLOR = "rgb(10, 12, 28)" # Xanh den sau tham
+CONTAINER_BG_COLOR = "rgba(20, 25, 50, 0.88)" # Xanh tim, trong suot nhe
+TITLE_BAR_BG_COLOR = "rgba(15, 18, 35, 0.92)" # Dam hon container
 
-TEXT_COLOR = "rgb(238, 235, 245)"
-SUBTEXT_COLOR = "rgb(175, 170, 185)"
-INPUT_BG_COLOR = "rgba(12, 15, 28, 0.92)"
-INPUT_BORDER_COLOR = "rgba(170, 150, 200, 0.55)"
-INPUT_FOCUS_BORDER_COLOR = "rgb(210, 190, 250)"
-WINDOW_BG_COLOR = "rgb(10, 12, 22)" 
-CONTAINER_BG_COLOR = "rgba(20, 24, 40, 0.88)" 
-TITLE_BAR_BG_COLOR = "rgba(15, 18, 30, 0.9)"
+PRIMARY_COLOR = "rgb(65, 75, 115)" # Xanh xam tram
+ACCENT_COLOR = "rgb(110, 150, 255)" # Xanh bac ha (stellar blue)
+HOVER_COLOR = "rgb(85, 100, 145)" # Dam hon primary
+SELECTED_COLOR = "rgb(130, 170, 255)" # Sang hon accent
+
+TEXT_COLOR = "rgb(225, 230, 245)" # Trang nga (lunar white)
+SUBTEXT_COLOR = "rgb(155, 160, 180)" # Xam nhat
+INPUT_BG_COLOR = "rgba(12, 15, 32, 0.9)" # Nen input toi
+INPUT_BORDER_COLOR = "rgba(140, 150, 190, 0.5)" # Vien input mo
+INPUT_FOCUS_BORDER_COLOR = "rgb(160, 190, 255)" # Vien focus sang
+
+SUCCESS_COLOR = "rgb(100, 200, 130)"  # Xanh la nhat
+WARNING_COLOR = "rgb(230, 170, 80)" # Vang cam
+ERROR_COLOR = "rgb(220, 90, 100)"   # Do hong
 
 # Loai tru MD
 DEFAULT_EXCLUDED_SUBDIRS = ["__pycache__", "moitruongao", "venv", ".git", ".vscode", "bieutuong", "memory", "node_modules", "uploads", "chats", "package-lock.json", "dist", "build", "assets"] 

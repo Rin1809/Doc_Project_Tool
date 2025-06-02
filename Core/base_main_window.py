@@ -1,4 +1,3 @@
-# Core/base_main_window.py
 import os
 import sys
 import json 
@@ -31,7 +30,7 @@ class BaseMainWindow(QMainWindow):
         
         self._setup_window_properties()
         self._load_assets()
-        self._init_ui_elements() # Goi ham da sua
+        self._init_ui_elements() 
         self._apply_initial_styles()
 
         self._is_dragging = False
@@ -70,7 +69,7 @@ class BaseMainWindow(QMainWindow):
                 self._initial_maximized = False
                 self._save_app_config() 
         except Exception as e:
-            print(f"Error loading config: {e}. Using default settings.")
+            print(f"Loi tai config: {e}. SD MDinh.") # loi tai cfg
             Translations.set_language(DEFAULT_LANGUAGE)
             self._initial_geometry = QRect(100, 100, WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT)
             self._initial_maximized = False
@@ -127,13 +126,10 @@ class BaseMainWindow(QMainWindow):
         self.content_area_with_background = QWidget() 
         self.content_area_with_background.setObjectName("contentAreaWithBackground")
         
-        # Layout cho content_area_with_background, se chua main_content_widget chinh
         content_area_main_layout = QVBoxLayout(self.content_area_with_background)
         content_area_main_layout.setContentsMargins(0,0,0,0)
         content_area_main_layout.setSpacing(0)
         
-        # BG label, la con truc tiep cua content_area_with_background
-        # kich thuoc & vi tri se dat thu cong, va dat o lop duoi cung
         self.background_label = QLabel(self.content_area_with_background) 
         self.background_label.setObjectName("backgroundLabel")
         self.background_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
@@ -142,11 +138,9 @@ class BaseMainWindow(QMainWindow):
             self.background_label.setText(Translations.get("base_mw_bg_not_found_ui")) 
             self.background_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        # main_content_widget (noi lop con se dat UI vao)
-        # Se duoc them vao content_area_main_layout de Qt qly kich thuoc
-        self.main_content_widget = QWidget() # Ko set parent, layout se lam viec do
+        self.main_content_widget = QWidget() 
         self.main_content_widget.setObjectName("mainContentWidget")
-        content_area_main_layout.addWidget(self.main_content_widget) # Them vao layout
+        content_area_main_layout.addWidget(self.main_content_widget) 
 
         self.overall_layout.addWidget(self.content_area_with_background)
         
@@ -158,12 +152,13 @@ class BaseMainWindow(QMainWindow):
         app_font = QFont(font_family, NORMAL_FONT_SIZE) 
         QApplication.setFont(app_font)
 
+        # nen chinh cho cua so
         self.main_container_widget.setStyleSheet(f"background-color: {WINDOW_BG_COLOR}; border-radius: 10px;")
         if self.original_pixmap.isNull():
              self.background_label.setStyleSheet(f"background-color: {WINDOW_BG_COLOR}; color: white; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; font-family: '{font_family}';") 
         else:
              self.background_label.setStyleSheet("border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;")
-        self.main_content_widget.setStyleSheet("background-color: transparent;") # Quan trong de BG hien thi
+        self.main_content_widget.setStyleSheet("background-color: transparent;") 
         self.custom_title_bar._apply_styles() 
 
 
@@ -179,19 +174,15 @@ class BaseMainWindow(QMainWindow):
                 Qt.SmoothTransformation
             )
             self.background_label.setPixmap(scaled_pixmap)
-            # BG label van fill content_area_with_background nhu truoc
             self.background_label.setGeometry(0, 0, bg_container_size.width(), bg_container_size.height())
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self._update_background_pixmap() # BG van update
+        self._update_background_pixmap() 
         
-        # main_content_widget gio nam trong layout roi, Qt tu qly size
-        # Chi can dam bao thu tu lop (stacking order) cho dung
         if hasattr(self, 'main_content_widget') and hasattr(self, 'background_label'):
-            # self.main_content_widget.setGeometry(self.content_area_with_background.rect()) # Dong nay ko can thiet nua
-            self.main_content_widget.raise_() # Dam bao main_content_widget luon o tren cung
-            self.background_label.lower()     # Dam bao background_label luon o duoi cung
+            self.main_content_widget.raise_() 
+            self.background_label.lower()     
 
 
     def showEvent(self, event):
@@ -201,17 +192,16 @@ class BaseMainWindow(QMainWindow):
             if hasattr(self.custom_title_bar, 'btn_maximize_restore'): 
                  self.custom_title_bar.btn_maximize_restore.setText("▫")
 
-        self._update_background_pixmap() # Update BG
+        self._update_background_pixmap() 
         if hasattr(self, 'main_content_widget') and hasattr(self, 'background_label'):
-             # self.main_content_widget.setGeometry(self.content_area_with_background.rect()) # Dong nay ko can thiet nua
-             self.main_content_widget.raise_() # Dam bao main_content_widget luon o tren
-             self.background_label.lower()     # Dam bao background_label luon o duoi
+             self.main_content_widget.raise_() 
+             self.background_label.lower()     
 
         if not self._first_show_animation_done:
             self._first_show_animation_done = True
             if not self.opacity_animation_open:
                 self.opacity_animation_open = QPropertyAnimation(self, b"windowOpacity", self)
-                self.opacity_animation_open.setDuration(480)
+                self.opacity_animation_open.setDuration(600) # T.gian mo cua so
                 self.opacity_animation_open.setEasingCurve(QEasingCurve.Type.InOutSine)
             self.setWindowOpacity(0.0)
             self.opacity_animation_open.setStartValue(0.0)
@@ -371,7 +361,7 @@ class BaseMainWindow(QMainWindow):
 
         if not self.opacity_animation_close:
             self.opacity_animation_close = QPropertyAnimation(self, b"windowOpacity", self)
-            self.opacity_animation_close.setDuration(320)
+            self.opacity_animation_close.setDuration(400) # T.gian dong cua so
             self.opacity_animation_close.setEasingCurve(QEasingCurve.Type.InOutSine)
             self.opacity_animation_close.finished.connect(self._handle_close_animation_finished)
 

@@ -1,4 +1,3 @@
-# Core/main_app.py
 import os
 import sys
 import json
@@ -27,7 +26,7 @@ from .constants import (
     NORMAL_FONT_SIZE, HEADER_FONT_SIZE, SMALL_FONT_SIZE,
     TEXT_COLOR, SUBTEXT_COLOR, INPUT_BG_COLOR, INPUT_BORDER_COLOR, INPUT_FOCUS_BORDER_COLOR,
     PRIMARY_COLOR, ACCENT_COLOR, HOVER_COLOR, SUCCESS_COLOR, WARNING_COLOR, ERROR_COLOR,
-    CONTAINER_BG_COLOR, WINDOW_BG_COLOR
+    CONTAINER_BG_COLOR, WINDOW_BG_COLOR, SELECTED_COLOR
 )
 
 
@@ -65,7 +64,7 @@ class ProjectDocApp(BaseMainWindow):
         super().__init__(base_app_path) 
         
         self._init_app_variables()
-        self._create_ui_layout_and_tabs() # Ten ham dc cap nhat de phan anh ro hon
+        self._create_ui_layout_and_tabs() 
         self._apply_qss_styles() 
         self._connect_signals()
         self.load_history_from_file()
@@ -89,42 +88,32 @@ class ProjectDocApp(BaseMainWindow):
         self._is_exiting_initiated_by_user = False 
 
 
-    def _create_ui_layout_and_tabs(self): # Truoc day la _create_ui
-        # main_content_widget da ton tai tu BaseMainWindow, ta se them layout va noi dung vao do
-        content_layout = QVBoxLayout(self.main_content_widget) # Layout nay cho main_content_widget
-        content_layout.setContentsMargins(15, 15, 15, 15) 
-        content_layout.setSpacing(10)
+    def _create_ui_layout_and_tabs(self): 
+        content_layout = QVBoxLayout(self.main_content_widget) 
+        content_layout.setContentsMargins(18, 18, 18, 18) # padding noi dung
+        content_layout.setSpacing(12)
 
-        # Tao QTabWidget
         self.tab_widget = QTabWidget()
         self.tab_widget.setObjectName("mainTabWidget")
 
-        # Tao noi dung cho tung tab (cac QWidget con)
-        # Cac ham nay se tao self.tab_config, self.tab_advanced, v.v.
         self._create_config_tab_content()    
         self._create_advanced_tab_content()
         self._create_history_tab_content()
         self._create_output_tab_content()
 
-        # QUAN TRONG: Them cac QWidget con vao QTabWidget duoi dang tab
-        # Tieu de ban dau la placeholder, se duoc dich sau trong retranslate_app_specific_ui
-        self.tab_widget.addTab(self.tab_config, "...") # Them tab config
-        self.tab_widget.addTab(self.tab_advanced, "...")# Them tab advanced
-        self.tab_widget.addTab(self.tab_history, "...") # Them tab history
-        self.tab_widget.addTab(self.tab_output, "...")  # Them tab output
+        self.tab_widget.addTab(self.tab_config, "...") 
+        self.tab_widget.addTab(self.tab_advanced, "...")
+        self.tab_widget.addTab(self.tab_history, "...") 
+        self.tab_widget.addTab(self.tab_output, "...")  
         
-        # Them QTabWidget (da chua cac tab con) vao layout chinh cua main_content_widget
         content_layout.addWidget(self.tab_widget)
-
-        # Tao status bar va them vao content_layout (se nam ben duoi QTabWidget)
         self._create_status_bar(content_layout) 
 
-    # Doi ten cac ham tao tab content cho ro nghia hon
-    def _create_config_tab_content(self): # Truoc la _create_config_tab
-        self.tab_config = QWidget() # Day la widget se chua noi dung cua tab Config
+    def _create_config_tab_content(self): 
+        self.tab_config = QWidget() 
         self.tab_config.setObjectName("configTab")
-        layout = QVBoxLayout(self.tab_config) # Layout cho widget tab_config
-        layout.setSpacing(15)
+        layout = QVBoxLayout(self.tab_config) 
+        layout.setSpacing(18) # khoang cach group
 
         self.dir_group = QGroupBox() 
         self.dir_group.setObjectName("configGroup")
@@ -139,6 +128,7 @@ class ProjectDocApp(BaseMainWindow):
         self.add_dir_btn = QPushButton() 
         self.add_dir_btn.setObjectName("primaryButton")
         self.remove_dir_btn = QPushButton() 
+        self.remove_dir_btn.setObjectName("warningButton") # doi loai nut
         dir_buttons_layout.addWidget(self.add_dir_btn)
         dir_buttons_layout.addWidget(self.remove_dir_btn)
         dir_buttons_layout.addStretch()
@@ -172,7 +162,7 @@ class ProjectDocApp(BaseMainWindow):
         self.verbose_checkbox = QCheckBox() 
         format_hbox.addWidget(self.txt_radio)
         format_hbox.addWidget(self.md_radio)
-        format_hbox.addSpacerItem(QSpacerItem(20,0, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum))
+        format_hbox.addSpacerItem(QSpacerItem(25,0, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum))
         format_hbox.addWidget(self.verbose_checkbox)
         format_hbox.addStretch()
         output_layout.addRow(self.output_format_label_widget, format_hbox)
@@ -180,15 +170,15 @@ class ProjectDocApp(BaseMainWindow):
 
         self.run_button = QPushButton() 
         self.run_button.setObjectName("runButton")
-        self.run_button.setFixedHeight(40) 
+        self.run_button.setFixedHeight(45) # nut chay cao hon
         layout.addWidget(self.run_button, 0, Qt.AlignmentFlag.AlignCenter)
         layout.addStretch()
 
-    def _create_advanced_tab_content(self): # Truoc la _create_advanced_tab
+    def _create_advanced_tab_content(self): 
         self.tab_advanced = QWidget() 
         self.tab_advanced.setObjectName("advancedTab")
         layout = QVBoxLayout(self.tab_advanced)
-        layout.setSpacing(15)
+        layout.setSpacing(18)
 
         self.excluded_dirs_group = QGroupBox() 
         self.excluded_dirs_group.setObjectName("configGroup")
@@ -206,11 +196,11 @@ class ProjectDocApp(BaseMainWindow):
         
         layout.addStretch()
 
-    def _create_history_tab_content(self): # Truoc la _create_history_tab
+    def _create_history_tab_content(self): 
         self.tab_history = QWidget() 
         self.tab_history.setObjectName("historyTab")
         layout = QVBoxLayout(self.tab_history)
-        layout.setSpacing(10)
+        layout.setSpacing(12)
         
         self.history_group = QGroupBox() 
         self.history_group.setObjectName("configGroup")
@@ -235,11 +225,11 @@ class ProjectDocApp(BaseMainWindow):
         history_layout.addLayout(history_buttons_layout)
         layout.addWidget(self.history_group)
 
-    def _create_output_tab_content(self): # Truoc la _create_output_tab
+    def _create_output_tab_content(self): 
         self.tab_output = QWidget() 
         self.tab_output.setObjectName("outputTab")
         layout = QVBoxLayout(self.tab_output)
-        layout.setSpacing(10)
+        layout.setSpacing(12)
 
         self.output_text_edit = QPlainTextEdit() 
         self.output_text_edit.setObjectName("outputTextEdit")
@@ -263,12 +253,12 @@ class ProjectDocApp(BaseMainWindow):
         output_buttons_layout.addWidget(self.open_output_folder_btn)
         layout.addLayout(output_buttons_layout)
 
-    def _create_status_bar(self, parent_layout): # parent_layout la content_layout cua main_content_widget
+    def _create_status_bar(self, parent_layout): 
         status_bar_widget = QFrame() 
         status_bar_widget.setObjectName("statusBar")
-        status_bar_widget.setFixedHeight(30)
+        status_bar_widget.setFixedHeight(32) # status bar cao hon
         status_layout = QHBoxLayout(status_bar_widget)
-        status_layout.setContentsMargins(10, 0, 10, 0)
+        status_layout.setContentsMargins(12, 0, 12, 0)
 
         self.status_label = QLabel(Translations.get("status_ready")) 
         self.status_label.setObjectName("statusLabel")
@@ -278,9 +268,9 @@ class ProjectDocApp(BaseMainWindow):
         self.progress_bar.setRange(0,100) 
 
         status_layout.addWidget(self.status_label)
-        status_layout.addSpacerItem(QSpacerItem(20,0,QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum))
+        status_layout.addSpacerItem(QSpacerItem(25,0,QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum))
         status_layout.addWidget(self.progress_bar, 1) 
-        parent_layout.addWidget(status_bar_widget) # Them status bar vao layout cua main_content_widget, ben duoi TabWidget
+        parent_layout.addWidget(status_bar_widget) 
 
     def _connect_signals(self):
         self.add_dir_btn.clicked.connect(self.add_project_directory)
@@ -306,7 +296,6 @@ class ProjectDocApp(BaseMainWindow):
         self.custom_title_bar.setTitle("app_title_on_bar") 
         self.custom_title_bar.setVersion("app_version_pyside6") 
 
-        # Cap nhat tieu de cac tab
         if hasattr(self, 'tab_widget') and hasattr(self, 'tab_config'):
             idx = self.tab_widget.indexOf(self.tab_config)
             if idx != -1: self.tab_widget.setTabText(idx, Translations.get("config_tab_title"))
@@ -323,7 +312,6 @@ class ProjectDocApp(BaseMainWindow):
             idx = self.tab_widget.indexOf(self.tab_output)
             if idx != -1: self.tab_widget.setTabText(idx, Translations.get("output_tab_title"))
         
-        # Config Tab
         if hasattr(self, 'dir_group'): self.dir_group.setTitle(Translations.get("project_dir_group_title"))
         if hasattr(self, 'add_dir_btn'): self.add_dir_btn.setText(Translations.get("add_dir_button"))
         if hasattr(self, 'remove_dir_btn'): self.remove_dir_btn.setText(Translations.get("remove_dir_button"))
@@ -337,33 +325,29 @@ class ProjectDocApp(BaseMainWindow):
         if hasattr(self, 'verbose_checkbox'): self.verbose_checkbox.setText(Translations.get("verbose_checkbox_label"))
         if hasattr(self, 'run_button'): self.run_button.setText(Translations.get("run_button_text"))
 
-        # Advanced Tab
         if hasattr(self, 'excluded_dirs_group'): self.excluded_dirs_group.setTitle(Translations.get("excluded_dirs_group_title"))
         if hasattr(self, 'excluded_files_group'): self.excluded_files_group.setTitle(Translations.get("excluded_files_group_title"))
         
-        # History Tab
         if hasattr(self, 'history_group'): self.history_group.setTitle(Translations.get("history_group_title"))
         if hasattr(self, 'load_history_btn'): self.load_history_btn.setText(Translations.get("load_history_button"))
         if hasattr(self, 'delete_history_btn'): self.delete_history_btn.setText(Translations.get("delete_history_button"))
         if hasattr(self, 'delete_all_history_btn'): self.delete_all_history_btn.setText(Translations.get("delete_all_history_button"))
         self.populate_history_listbox() 
 
-        # Output Tab
         if hasattr(self, 'copy_output_btn'): self.copy_output_btn.setText(Translations.get("copy_output_button"))
         if hasattr(self, 'clear_output_btn'): self.clear_output_btn.setText(Translations.get("clear_output_button"))
         if hasattr(self, 'ai_studio_btn'): self.ai_studio_btn.setText(Translations.get("ai_studio_button"))
         if hasattr(self, 'open_output_folder_btn'): self.open_output_folder_btn.setText(Translations.get("open_output_folder_button"))
         
-        # Status Bar
-        if hasattr(self, 'status_label'): # Ktra xem status_label co ton tai ko
+        if hasattr(self, 'status_label'): 
             current_status_text = self.status_label.text()
             is_ready_status = False
             for lang_code_check in Translations.lang_map.keys():
-                if current_status_text == Translations.get("status_ready", lang=lang_code_check): # Su dung lang= de lay dung text
+                if current_status_text == Translations.get("status_ready", lang=lang_code_check): 
                     is_ready_status = True
                     break
             if is_ready_status:
-                self.status_label.setText(Translations.get("status_ready")) # Set lai bang ngon ngu hien tai
+                self.status_label.setText(Translations.get("status_ready")) 
         
         self._apply_qss_styles() 
 
@@ -429,7 +413,6 @@ class ProjectDocApp(BaseMainWindow):
             QMessageBox.critical(self, Translations.get("dialog_error_title"), Translations.get("msg_enter_base_filename_text")) 
             return
             
-        # Chuyen sang tab output truoc khi chay
         output_tab_widget = self.tab_widget.findChild(QWidget, "outputTab")
         if output_tab_widget:
             self.tab_widget.setCurrentWidget(output_tab_widget)
@@ -520,14 +503,13 @@ class ProjectDocApp(BaseMainWindow):
         self._update_control_states(is_running=False) 
         
         if self.worker_thread and self.worker_thread.isRunning():
-            pass # Ko can lam gi them, worker se tu thoat
+            pass 
         
         if self._is_exiting_initiated_by_user:
             self._is_exiting_initiated_by_user = False 
             self.close() 
 
 
-    # --- History Functions ---
     def populate_history_listbox(self):
         self.history_list_widget.clear()
         for item in self.history_data:
@@ -630,7 +612,6 @@ class ProjectDocApp(BaseMainWindow):
         self.excluded_files_list = list(config_data.get("excluded_files", DEFAULT_EXCLUDED_FILES))
         self.excluded_files_entry.setText(", ".join(self.excluded_files_list))
 
-        # Chuyen sang tab config sau khi load
         config_tab_widget = self.tab_widget.findChild(QWidget, "configTab")
         if config_tab_widget:
             self.tab_widget.setCurrentWidget(config_tab_widget)
@@ -651,16 +632,12 @@ class ProjectDocApp(BaseMainWindow):
             try:
                 indices_to_delete = sorted([self.history_list_widget.row(item) for item in selected_items], reverse=True)
                 
-                # Xoa tu self.history_data dua tren index da sap xep nguoc
-                # de ko bi loi index out of bounds
                 for list_widget_index in indices_to_delete:
-                    # Can map list_widget_index (co the bi filter/sort) voi index trong self.history_data
-                    # Vi history_data duoc sort theo timestamp, va listbox cung vay, index nen tuong ung
                     if 0 <= list_widget_index < len(self.history_data):
                          del self.history_data[list_widget_index]
                 
                 self.save_history_to_file()
-                self.populate_history_listbox() # Load lai listbox
+                self.populate_history_listbox() 
                 QMessageBox.information(self, Translations.get("dialog_deleted_title"), Translations.get("history_item_deleted_text")) 
             except Exception as e:
                  QMessageBox.critical(self, Translations.get("dialog_error_title"), Translations.get("history_delete_error_text", error=str(e))) 
@@ -683,7 +660,6 @@ class ProjectDocApp(BaseMainWindow):
             QMessageBox.information(self, Translations.get("dialog_deleted_title"), Translations.get("all_history_deleted_text")) 
         self._update_control_states()
 
-    # --- Output Tab Functions ---
     @Slot()
     def copy_output_to_clipboard(self):
         clipboard = QApplication.clipboard()
@@ -702,7 +678,6 @@ class ProjectDocApp(BaseMainWindow):
         path_to_open = self.output_dir_entry.text() 
         if path_to_open and os.path.isdir(path_to_open):
             try:
-                # Su dung QDesktopServices de mo thu muc, ho tro da nen tang tot hon
                 QDesktopServices.openUrl(f"file:///{os.path.normpath(path_to_open)}")
             except Exception as e:
                  QMessageBox.critical(self, Translations.get("dialog_error_title"), Translations.get("cannot_open_folder_text", error=str(e))) 
@@ -716,8 +691,7 @@ class ProjectDocApp(BaseMainWindow):
             try:
                 QDesktopServices.openUrl(ai_studio_url)
                 clipboard = QApplication.clipboard()
-                # path_for_clipboard = self.last_main_output_file.replace("\\", "/") # Old, gay / tren Win
-                path_for_clipboard = os.path.normpath(self.last_main_output_file) # Dg dan chuan OS
+                path_for_clipboard = os.path.normpath(self.last_main_output_file) 
                 clipboard.setText(path_for_clipboard)
                 QMessageBox.information(self, Translations.get("dialog_notice_title"), Translations.get("ai_studio_opened_path_copied_text", path=path_for_clipboard)) 
             except Exception as e:
@@ -727,7 +701,6 @@ class ProjectDocApp(BaseMainWindow):
 
 
     def _update_control_states(self, is_running=False):
-        # Kiem tra xem cac widget da duoc khoi tao chua truoc khi truy cap
         if hasattr(self, 'add_dir_btn'): self.add_dir_btn.setEnabled(not is_running)
         if hasattr(self, 'project_dir_list_widget') and hasattr(self, 'remove_dir_btn'):
             self.remove_dir_btn.setEnabled(not is_running and self.project_dir_list_widget.count() > 0)
@@ -778,59 +751,57 @@ class ProjectDocApp(BaseMainWindow):
             QMainWindow {{
                 background: transparent; 
             }}
-            QWidget#mainContainerWidget {{ 
-                /* border: 2px solid yellow; */ /* Debug */
-            }}
             QWidget#mainContentWidget {{
                  background-color: transparent; 
-                 padding: 10px; /* Giu padding de noi dung ko sat mep */
-                 /* border: 1px solid lime; */ /* Debug */
+                 padding: 12px; /* padding chung */
             }}
              QWidget#contentAreaWithBackground {{
                 border-bottom-left-radius: 10px;
                 border-bottom-right-radius: 10px;
                 background-color: transparent; 
-                /* border: 1px solid cyan; */ /* Debug */
             }}
             QTabWidget::pane {{
                 border: 1px solid {INPUT_BORDER_COLOR};
-                border-radius: 8px;
+                border-radius: 9px; /* bo tron hon */
                 background-color: {CONTAINER_BG_COLOR};
-                padding: 10px;
+                padding: 12px;
             }}
             QTabBar::tab {{
-                background: rgba(255,255,255,0.1);
+                background: rgba(30,35,60,0.7); /* nen tab mo hon */
                 border: 1px solid {INPUT_BORDER_COLOR};
                 border-bottom: none; 
-                padding: 8px 15px;
-                margin-right: 2px;
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
+                padding: 9px 18px; /* tab rong hon */
+                margin-right: 3px;
+                border-top-left-radius: 7px;
+                border-top-right-radius: 7px;
                 color: {SUBTEXT_COLOR};
                 font-family: "{font_family}"; 
+                font-weight: 500; /* Chu tab dam hon chut */
             }}
             QTabBar::tab:selected {{
                 background: {CONTAINER_BG_COLOR}; 
-                color: {TEXT_COLOR};
+                color: {SELECTED_COLOR}; /* Mau chu tab dc chon */
                 font-weight: bold;
+                border-bottom: 1px solid {CONTAINER_BG_COLOR}; /* Che vien duoi */
             }}
             QTabBar::tab:hover {{
-                background: rgba(255,255,255,0.15);
+                background: rgba(40,45,75,0.85);
+                color: {TEXT_COLOR};
             }}
             QGroupBox {{
-                background-color: rgba(255,255,255,0.03); 
+                background-color: rgba(25,30,55,0.6); /* nen group box trong hon */
                 border: 1px solid {INPUT_BORDER_COLOR};
-                border-radius: 8px;
-                margin-top: 10px; 
-                padding: 15px 10px 10px 10px; 
+                border-radius: 9px;
+                margin-top: 12px; 
+                padding: 18px 12px 12px 12px; 
                 font-family: "{font_family}"; 
             }}
             QGroupBox::title {{
                 subcontrol-origin: margin;
                 subcontrol-position: top left;
-                padding: 0 5px 0 5px;
-                left: 10px;
-                color: {SUBTEXT_COLOR};
+                padding: 0 6px 0 6px;
+                left: 12px;
+                color: {ACCENT_COLOR}; /* mau tieu de group */
                 font-size: {NORMAL_FONT_SIZE + 1}pt;
                 font-weight: bold;
                 font-family: "{font_family}"; 
@@ -838,90 +809,113 @@ class ProjectDocApp(BaseMainWindow):
             QLineEdit, QPlainTextEdit, QListWidget {{
                 background-color: {INPUT_BG_COLOR};
                 border: 1px solid {INPUT_BORDER_COLOR};
-                border-radius: 6px;
-                padding: 8px;
+                border-radius: 7px;
+                padding: 9px; /* padding input */
                 font-family: "{font_family}"; 
+                color: {TEXT_COLOR};
             }}
             QLineEdit:focus, QPlainTextEdit:focus, QListWidget:focus {{
-                border: 1px solid {INPUT_FOCUS_BORDER_COLOR};
+                border: 1.5px solid {INPUT_FOCUS_BORDER_COLOR}; /* Vien focus day hon */
+                background-color: rgba(18, 22, 42, 0.9); /* nen khi focus */
+            }}
+            QListWidget::item {{
+                padding: 6px 4px; /* padding item trong list */
             }}
             QListWidget::item:selected {{
-                background-color: {ACCENT_COLOR};
+                background-color: {SELECTED_COLOR};
+                color: rgb(5,5,25); /* mau chu khi item dc chon */
+                border-radius: 4px;
+            }}
+            QListWidget::item:hover {{
+                background-color: {HOVER_COLOR};
                 color: white;
+                border-radius: 4px;
             }}
             QPushButton {{
                 background-color: {PRIMARY_COLOR};
                 border: none;
-                border-radius: 6px;
-                padding: 8px 15px;
-                min-height: 20px; 
+                border-radius: 7px;
+                padding: 9px 18px; /* padding nut */
+                min-height: 22px; 
                 font-family: "{font_family}"; 
+                font-weight: 500; /* chu nut dam hon */
+                color: {TEXT_COLOR};
             }}
             QPushButton:hover {{
                 background-color: {HOVER_COLOR};
+                color: white;
             }}
             QPushButton:pressed {{
-                background-color: {PRIMARY_COLOR}; 
+                background-color: {QColor(PRIMARY_COLOR).darker(115).name()}; 
             }}
             QPushButton:disabled {{
-                background-color: rgba(80,80,80,0.5);
+                background-color: rgba(60,65,90,0.6);
                 color: {SUBTEXT_COLOR};
             }}
             QPushButton#runButton {{
                 background-color: {SUCCESS_COLOR};
                 font-size: {HEADER_FONT_SIZE - 2}pt;
                 font-weight: bold;
-                padding: 10px 20px;
+                padding: 12px 24px; /* nut run to hon */
+                color: rgb(20,20,20);
             }}
             QPushButton#runButton:hover {{
-                background-color: {QColor(SUCCESS_COLOR).lighter(120).name()};
+                background-color: {QColor(SUCCESS_COLOR).lighter(115).name()};
             }}
             QPushButton#primaryButton {{ background-color: {PRIMARY_COLOR}; }}
             QPushButton#primaryButton:hover {{ background-color: {HOVER_COLOR}; }}
-            QPushButton#secondaryButton {{ background-color: {QColor(PRIMARY_COLOR).darker(120).name()}; }}
+
+            QPushButton#secondaryButton {{ background-color: {QColor(PRIMARY_COLOR).darker(125).name()}; }}
             QPushButton#secondaryButton:hover {{ background-color: {PRIMARY_COLOR}; }}
-            QPushButton#accentButton {{ background-color: {ACCENT_COLOR}; }}
-            QPushButton#accentButton:hover {{ background-color: {QColor(ACCENT_COLOR).lighter(120).name()}; }}
+
+            QPushButton#accentButton {{ background-color: {ACCENT_COLOR}; color: rgb(10,10,30); }}
+            QPushButton#accentButton:hover {{ background-color: {QColor(ACCENT_COLOR).lighter(115).name()}; }}
 
             QPushButton#warningButton {{ 
                 background-color: {WARNING_COLOR}; 
-                color: white; 
+                color: rgb(30,20,0); 
             }}
             QPushButton#warningButton:hover {{ 
-                background-color: {QColor(WARNING_COLOR).lighter(120).name()}; 
-                color: white; 
+                background-color: {QColor(WARNING_COLOR).lighter(115).name()}; 
             }}
             QPushButton#errorButton {{ background-color: {ERROR_COLOR}; color: white; }}
-            QPushButton#errorButton:hover {{ background-color: {QColor(ERROR_COLOR).lighter(120).name()}; color: white; }}
+            QPushButton#errorButton:hover {{ background-color: {QColor(ERROR_COLOR).lighter(115).name()}; }}
 
-            QRadioButton, QCheckBox {{ font-family: "{font_family}"; }}
+            QRadioButton, QCheckBox {{ font-family: "{font_family}"; padding: 3px 0; }}
             QRadioButton::indicator, QCheckBox::indicator {{
-                width: 16px; height: 16px; border-radius: 3px;
+                width: 17px; height: 17px; border-radius: 4px;
+                border: 1px solid {SUBTEXT_COLOR};
+                background-color: {INPUT_BG_COLOR};
             }}
-            QRadioButton::indicator {{ border-radius: 8px; }}
+            QRadioButton::indicator {{ border-radius: 9px; }}
             QRadioButton::indicator:checked, QCheckBox::indicator:checked {{
-                background-color: {ACCENT_COLOR};
+                background-color: {SELECTED_COLOR};
+                border: 1px solid {ACCENT_COLOR};
+            }}
+            QRadioButton::indicator:hover, QCheckBox::indicator:hover {{
+                border: 1px solid {TEXT_COLOR};
             }}
             QProgressBar {{
                 border: 1px solid {INPUT_BORDER_COLOR};
-                border-radius: 4px;
+                border-radius: 5px;
                 text-align: center;
                 background-color: {INPUT_BG_COLOR};
+                height: 12px; /* thanh progress cao hon */
             }}
             QProgressBar::chunk {{
-                background-color: {SUCCESS_COLOR};
-                border-radius: 3px;
-                margin: 0.5px;
+                background-color: {QColor(SUCCESS_COLOR).lighter(110).name()};
+                border-radius: 4px;
+                margin: 1px;
             }}
             QFrame#statusBar {{
-                border-top: 1px solid {INPUT_BORDER_COLOR};
-                background-color: transparent; /* Giong voi mainContentWidget */
-                 /* border: 1px solid orange; */ /* Debug */
+                border-top: 1px solid rgba(200, 205, 220, 0.12);
+                background-color: transparent; 
             }}
             QLabel#statusLabel {{
                 color: {SUBTEXT_COLOR};
-                font-size: {SMALL_FONT_SIZE}pt;
+                font-size: {SMALL_FONT_SIZE -1}pt;
                 font-family: "{font_family}"; 
+                padding-left: 3px;
             }}
             QMessageBox {{ 
                 background-color: {WINDOW_BG_COLOR}; 
@@ -930,13 +924,14 @@ class ProjectDocApp(BaseMainWindow):
             QMessageBox QLabel {{ 
                 color: {TEXT_COLOR};
                 font-family: "{font_family}";
+                padding: 10px;
             }}
             QMessageBox QPushButton {{ 
                 background-color: {PRIMARY_COLOR};
                 color: {TEXT_COLOR};
-                border-radius: 4px;
-                padding: 6px 12px;
-                min-width: 70px;
+                border-radius: 5px;
+                padding: 7px 14px;
+                min-width: 75px;
                 font-family: "{font_family}";
             }}
             QMessageBox QPushButton:hover {{
@@ -944,22 +939,20 @@ class ProjectDocApp(BaseMainWindow):
             }}
         """
         self.setStyleSheet(qss)
-        if hasattr(self, 'custom_title_bar'): # Ktra truoc khi truy cap
+        if hasattr(self, 'custom_title_bar'): 
             self.custom_title_bar._apply_styles() 
         self.update()
 
 
     def closeEvent(self, event):
-        if self._animation_is_closing_flag: # Neu dang trong animation dong cua thi accept
+        if self._animation_is_closing_flag: 
             event.accept() 
             return
         
-        # Neu animation dong cua dang chay thi bo qua event nay
         if self.opacity_animation_close and self.opacity_animation_close.state() == QAbstractAnimation.State.Running: 
              event.ignore() 
              return
 
-        # Neu worker dang chay, hoi nguoi dung
         if self.worker_thread and self.worker_thread.isRunning():
             reply = QMessageBox.question(self, Translations.get("confirm_exit_title"), 
                                          Translations.get("confirm_exit_text"), 
