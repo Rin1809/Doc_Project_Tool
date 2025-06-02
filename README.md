@@ -6,6 +6,9 @@ A brief demonstration of the Doc_Project_Tool in action:
 ![image](https://github.com/user-attachments/assets/de5d748c-654f-4800-8297-b50f49db1a1a)
 
 
+**Output:**
+![image](https://github.com/user-attachments/assets/e4ddafc9-b3de-4c4f-acca-fe7f386eac73)
+
 ---
 ## DOCS:
 
