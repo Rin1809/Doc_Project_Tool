@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QRadioButton, QCheckBox, QTabWidget, QProgressBar, QPlainTextEdit,
     QScrollArea, QFrame, QGroupBox, QSpacerItem, QSizePolicy, QFormLayout
 )
-from PySide6.QtCore import Qt, Signal, Slot, QThread as QCoreThread, QObject
+from PySide6.QtCore import Qt, Signal, Slot, QThread as QCoreThread, QObject, QEventLoop
 from PySide6.QtGui import QFont, QDesktopServices, QClipboard, QPalette, QColor, QIcon
 
 from .base_main_window import BaseMainWindow # Lop co so moi
@@ -25,7 +25,7 @@ from .constants import (
     NORMAL_FONT_SIZE, HEADER_FONT_SIZE, SMALL_FONT_SIZE,
     TEXT_COLOR, SUBTEXT_COLOR, INPUT_BG_COLOR, INPUT_BORDER_COLOR, INPUT_FOCUS_BORDER_COLOR,
     PRIMARY_COLOR, ACCENT_COLOR, HOVER_COLOR, SUCCESS_COLOR, WARNING_COLOR, ERROR_COLOR,
-    CONTAINER_BG_COLOR, WINDOW_BG_COLOR # <<< THEM WINDOW_BG_COLOR VAO DAY
+    CONTAINER_BG_COLOR, WINDOW_BG_COLOR
 )
 
 # Worker cho tac vu tao tai lieu
@@ -84,8 +84,9 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
         self.last_main_output_file = None
         self.history_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), HISTORY_FILE)
         self.history_data = []
-        self.worker_thread = None # Cho QThread
-        self.doc_worker = None  # Cho QObject worker
+        self.worker_thread = None 
+        self.doc_worker = None  
+        self._is_exiting_initiated_by_user = False # Flag cho closeEvent
 
 
     def _create_ui(self):
@@ -192,7 +193,6 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
         excluded_files_layout.addWidget(self.excluded_files_entry)
         layout.addWidget(excluded_files_group)
         
-        # Nut Luu khong can thiet, se tu dong lay gia tri khi chay
         layout.addStretch()
         self.tab_widget.addTab(tab_advanced, "Nâng cao")
 
@@ -232,7 +232,7 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
         layout = QVBoxLayout(tab_output)
         layout.setSpacing(10)
 
-        self.output_text_edit = QPlainTextEdit() # PlainTextEdit tot hon cho log
+        self.output_text_edit = QPlainTextEdit() 
         self.output_text_edit.setObjectName("outputTextEdit")
         self.output_text_edit.setReadOnly(True)
         layout.addWidget(self.output_text_edit)
@@ -243,7 +243,7 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
         self.clear_output_btn = QPushButton("Xóa Kết quả")
         self.clear_output_btn.setObjectName("warningButton")
         self.ai_studio_btn = QPushButton("🚀 Mở AI Studio (và sao chép đường dẫn tệp)")
-        self.ai_studio_btn.setObjectName("accentButton") # Mau khac
+        self.ai_studio_btn.setObjectName("accentButton") 
         self.open_output_folder_btn = QPushButton("Mở Thư mục Đầu ra")
         self.open_output_folder_btn.setObjectName("primaryButton")
         
@@ -256,7 +256,7 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
         self.tab_widget.addTab(tab_output, "Kết quả")
 
     def _create_status_bar(self, parent_layout):
-        status_bar_widget = QFrame() # Su dung QFrame de co the style
+        status_bar_widget = QFrame() 
         status_bar_widget.setObjectName("statusBar")
         status_bar_widget.setFixedHeight(30)
         status_layout = QHBoxLayout(status_bar_widget)
@@ -267,11 +267,11 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
         self.progress_bar = QProgressBar()
         self.progress_bar.setObjectName("progressBar")
         self.progress_bar.setTextVisible(False)
-        self.progress_bar.setRange(0,100) # 0-100 cho % hoac 0-0 cho indeterminate
+        self.progress_bar.setRange(0,100) 
 
         status_layout.addWidget(self.status_label)
         status_layout.addSpacerItem(QSpacerItem(20,0,QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum))
-        status_layout.addWidget(self.progress_bar, 1) # Cho progress bar mo rong
+        status_layout.addWidget(self.progress_bar, 1) 
         parent_layout.addWidget(status_bar_widget)
 
     def _connect_signals(self):
@@ -291,7 +291,6 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
         self.ai_studio_btn.clicked.connect(self.open_ai_studio_and_copy)
         self.open_output_folder_btn.clicked.connect(self.open_output_folder_path)
         
-        # Radio buttons for output format
         self.txt_radio.toggled.connect(lambda: self._on_output_format_changed("txt", self.txt_radio.isChecked()))
         self.md_radio.toggled.connect(lambda: self._on_output_format_changed("markdown", self.md_radio.isChecked()))
 
@@ -305,11 +304,10 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
         directory = QFileDialog.getExistingDirectory(self, "Chọn Thư mục Dự án")
         if directory:
             directory = os.path.abspath(directory)
-            # Kiem tra trung lap
             items = [self.project_dir_list_widget.item(i).text() for i in range(self.project_dir_list_widget.count())]
             if directory not in items:
                 self.project_dir_list_widget.addItem(QListWidgetItem(directory))
-                self.project_dirs.append(directory) # Cap nhat DS noi bo
+                self.project_dirs.append(directory) 
             else:
                 QMessageBox.information(self, "Thông báo", "Thư mục bạn chọn đã có trong danh sách.")
         self._update_control_states()
@@ -324,8 +322,6 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
         for item in selected_items:
             row = self.project_dir_list_widget.row(item)
             self.project_dir_list_widget.takeItem(row)
-            # Cap nhat DS noi bo (can than neu DS khong theo thu tu list widget)
-            # Cach an toan hon la build lai project_dirs tu list_widget
         self.project_dirs = [self.project_dir_list_widget.item(i).text() for i in range(self.project_dir_list_widget.count())]
         self._update_control_states()
 
@@ -339,14 +335,12 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
         self._update_control_states()
 
     def _get_current_config_from_ui(self):
-        # Lay cac gia tri tu UI
         self.project_dirs = [self.project_dir_list_widget.item(i).text() for i in range(self.project_dir_list_widget.count())]
         self.output_dir_path = self.output_dir_entry.text()
         self.base_filename_str = self.base_filename_entry.text()
         self.excluded_subdirs_list = [s.strip() for s in self.excluded_subdirs_entry.text().split(",") if s.strip()]
         self.excluded_files_list = [f.strip() for f in self.excluded_files_entry.text().split(",") if f.strip()]
         self.verbose_state = self.verbose_checkbox.isChecked()
-        # output_format_str da duoc cap nhat boi radio button signals
 
     @Slot()
     def run_documentation_process(self):
@@ -362,15 +356,13 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
             QMessageBox.critical(self, "Lỗi", "Vui lòng nhập tên tệp cơ sở.")
             return
             
-        self.tab_widget.setCurrentWidget(self.tab_widget.findChild(QWidget, "outputTab")) # Chuyen sang tab KQ
+        self.tab_widget.setCurrentWidget(self.tab_widget.findChild(QWidget, "outputTab")) 
         self.output_text_edit.clear()
         self.status_label.setText("Đang xử lý...")
-        self.progress_bar.setRange(0,0) # Indeterminate
+        self.progress_bar.setRange(0,0) 
         self._update_control_states(is_running=True)
         self.last_main_output_file = None
 
-
-        # Setup worker va thread
         self.worker_thread = QCoreThread()
         self.doc_worker = DocWorker(
             self.project_dirs, self.excluded_subdirs_list, self.excluded_files_list,
@@ -380,13 +372,14 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
 
         self.worker_thread.started.connect(self.doc_worker.run)
         self.doc_worker.finished.connect(self._on_documentation_finished)
-        self.doc_worker.progress_update.connect(self.update_status_label_slot) # Slot de cap nhat status
+        self.doc_worker.progress_update.connect(self.update_status_label_slot) 
         self.doc_worker.error_occurred.connect(self._on_documentation_error)
         
-        # Clean up thread when finished
         self.doc_worker.finished.connect(self.worker_thread.quit)
         self.doc_worker.finished.connect(self.doc_worker.deleteLater)
         self.worker_thread.finished.connect(self.worker_thread.deleteLater)
+        # Khi QThread finished, nó sẽ tự dọn dẹp worker nếu worker là con của thread.
+        # Ở đây worker được moveToThread, deleteLater là cách tốt.
 
         self.worker_thread.start()
 
@@ -434,25 +427,34 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
             }
             self.add_to_history(current_config_data)
         
-        # Reset thread vars
-        self.worker_thread = None
-        self.doc_worker = None
+        # Ko can set worker_thread/doc_worker = None. deleteLater se xu ly.
+        # Neu co flag yeu cau thoat, xu ly o day
+        if self._is_exiting_initiated_by_user:
+            self._is_exiting_initiated_by_user = False # Reset flag
+            self.close() # Goi lai self.close() de kich hoat animation dong cua BaseMainWindow
+
 
     @Slot(str)
     def _on_documentation_error(self, error_message):
         self.output_text_edit.appendPlainText(f"Đã xảy ra lỗi nghiêm trọng:\n{error_message}")
         self.status_label.setText("Lỗi")
         self.progress_bar.setRange(0,100)
-        self.progress_bar.setValue(0) # Or some error indication
+        self.progress_bar.setValue(0) 
         self._update_control_states(is_running=False)
         self.last_main_output_file = None
 
-        # Reset thread vars
-        if self.worker_thread: # Neu thread con ton tai
-            self.worker_thread.quit() # Yeu cau thread dung
-            self.worker_thread.wait() # Cho thread dung han
-        self.worker_thread = None
-        self.doc_worker = None
+        # KTr worker_thread truoc khi thao tac, phong TH loi xay ra som
+        if self.worker_thread and self.worker_thread.isRunning():
+            # Ko can quit() va wait() o day vi da ket noi finished voi quit roi.
+            # Neu loi xay ra truoc khi worker.run() hoan tat, worker.finished se ko emit.
+            # Nhung error_occurred emit nghia la worker.run() da ket thuc (bang exception).
+            # Slot deleteLater se duoc goi.
+            pass
+        
+        # Ko can set worker_thread/doc_worker = None.
+        if self._is_exiting_initiated_by_user:
+            self._is_exiting_initiated_by_user = False # Reset flag
+            self.close() 
 
 
     # --- History Functions ---
@@ -474,7 +476,7 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
             
             display_text = f"{display_name} [{timestamp_str}]"
             list_item = QListWidgetItem(display_text)
-            list_item.setData(Qt.ItemDataRole.UserRole, item) # Luu full data vao item
+            list_item.setData(Qt.ItemDataRole.UserRole, item) 
             self.history_list_widget.addItem(list_item)
 
     def load_history_from_file(self):
@@ -528,7 +530,7 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
             QMessageBox.information(self, "Thông Báo", "Vui lòng chọn một mục từ lịch sử.")
             return
         
-        config_data = selected_items[0].data(Qt.ItemDataRole.UserRole) # Lay data tu item
+        config_data = selected_items[0].data(Qt.ItemDataRole.UserRole) 
         if not config_data:
             QMessageBox.critical(self, "Lỗi", "Không thể lấy dữ liệu từ mục lịch sử đã chọn.")
             return
@@ -573,12 +575,11 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
                                        QMessageBox.StandardButton.No)
         if confirm == QMessageBox.StandardButton.Yes:
             try:
-                # Xoa tu self.history_data truoc
                 config_to_delete = selected_items[0].data(Qt.ItemDataRole.UserRole)
                 self.history_data = [item for item in self.history_data if item != config_to_delete]
                 
                 self.save_history_to_file()
-                self.populate_history_listbox() # Load lai listbox
+                self.populate_history_listbox() 
                 QMessageBox.information(self, "Đã Xóa", "Mục lịch sử đã được xóa.")
             except Exception as e:
                  QMessageBox.critical(self, "Lỗi", f"Không thể xóa mục lịch sử: {str(e)}.")
@@ -617,7 +618,7 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
 
     @Slot()
     def open_output_folder_path(self):
-        path_to_open = self.output_dir_entry.text() # Lay tu UI
+        path_to_open = self.output_dir_entry.text() 
         if path_to_open and os.path.isdir(path_to_open):
             QDesktopServices.openUrl(f"file:///{os.path.normpath(path_to_open)}")
         else:
@@ -625,13 +626,12 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
 
     @Slot()
     def open_ai_studio_and_copy(self):
-        ai_studio_url = "https://aistudio.google.com/app/prompts/new_chat" #VD
+        ai_studio_url = "https://aistudio.google.com/app/prompts/new_chat" 
         if self.last_main_output_file and os.path.exists(self.last_main_output_file):
             try:
                 QDesktopServices.openUrl(ai_studio_url)
                 clipboard = QApplication.clipboard()
                 clipboard.setText(self.last_main_output_file)
-                # Thong bao da copy co the hoi phien, user se paste vao AI studio
             except Exception as e:
                 QMessageBox.critical(self, "Lỗi", f"Không thể mở AI Studio hoặc sao chép đường dẫn: {str(e)}")
         else:
@@ -639,7 +639,6 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
 
 
     def _update_control_states(self, is_running=False):
-        # Config tab
         self.add_dir_btn.setEnabled(not is_running)
         self.remove_dir_btn.setEnabled(not is_running and self.project_dir_list_widget.count() > 0)
         self.output_dir_entry.setEnabled(not is_running)
@@ -650,18 +649,15 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
         self.verbose_checkbox.setEnabled(not is_running)
         self.run_button.setEnabled(not is_running and self.project_dir_list_widget.count() > 0)
 
-        # Advanced tab
         self.excluded_subdirs_entry.setEnabled(not is_running)
         self.excluded_files_entry.setEnabled(not is_running)
 
-        # History tab
         has_history = self.history_list_widget.count() > 0
         has_selection = len(self.history_list_widget.selectedItems()) > 0
         self.load_history_btn.setEnabled(not is_running and has_selection)
         self.delete_history_btn.setEnabled(not is_running and has_selection)
         self.delete_all_history_btn.setEnabled(not is_running and has_history)
 
-        # Output tab
         has_output_text = bool(self.output_text_edit.toPlainText())
         self.copy_output_btn.setEnabled(has_output_text)
         self.clear_output_btn.setEnabled(has_output_text)
@@ -670,31 +666,29 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
 
 
     def _apply_qss_styles(self):
-        # Font Mac dinh
         default_font = QFont("Segoe UI", NORMAL_FONT_SIZE)
         QApplication.setFont(default_font)
         
-        # QSS (Mot phan, co the dat trong file rieng)
         qss = f"""
             QWidget {{
                 color: {TEXT_COLOR};
                 font-size: {NORMAL_FONT_SIZE}pt;
             }}
             QMainWindow {{
-                background: transparent; /* Cho phep border-radius cua mainContainerWidget hien thi */
+                background: transparent; 
             }}
-            QWidget#mainContainerWidget {{ /* Da set trong BaseMainWindow */
-                /* background-color: {WINDOW_BG_COLOR}; */ /* Day la bien bi thieu */
+            QWidget#mainContainerWidget {{ 
+                /* background-color: {WINDOW_BG_COLOR}; Da set trong BaseMainWindow */
                 /* border-radius: 10px; */
             }}
             QWidget#mainContentWidget {{
-                 background-color: transparent; /* Cho phep BG cua BaseMainWindow hien thi */
+                 background-color: transparent; 
                  padding: 10px;
             }}
              QWidget#contentAreaWithBackground {{
                 border-bottom-left-radius: 10px;
                 border-bottom-right-radius: 10px;
-                background-color: transparent; /* Cho phep BG cua BaseMainWindow hien thi */
+                background-color: transparent; 
             }}
             QTabWidget::pane {{
                 border: 1px solid {INPUT_BORDER_COLOR};
@@ -713,7 +707,7 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
                 color: {SUBTEXT_COLOR};
             }}
             QTabBar::tab:selected {{
-                background: {CONTAINER_BG_COLOR}; /* Giong pane */
+                background: {CONTAINER_BG_COLOR}; 
                 color: {TEXT_COLOR};
                 font-weight: bold;
             }}
@@ -721,11 +715,11 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
                 background: rgba(255,255,255,0.15);
             }}
             QGroupBox {{
-                background-color: rgba(255,255,255,0.03); /* Mau nen nhe cho groupbox */
+                background-color: rgba(255,255,255,0.03); 
                 border: 1px solid {INPUT_BORDER_COLOR};
                 border-radius: 8px;
-                margin-top: 10px; /* Cho title */
-                padding: 15px 10px 10px 10px; /* top padding cho title */
+                margin-top: 10px; 
+                padding: 15px 10px 10px 10px; 
             }}
             QGroupBox::title {{
                 subcontrol-origin: margin;
@@ -754,13 +748,13 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
                 border: none;
                 border-radius: 6px;
                 padding: 8px 15px;
-                min-height: 20px; /* Dam bao chieu cao nut */
+                min-height: 20px; 
             }}
             QPushButton:hover {{
                 background-color: {HOVER_COLOR};
             }}
             QPushButton:pressed {{
-                background-color: {PRIMARY_COLOR}; /* Hoac mot mau dam hon */
+                background-color: {PRIMARY_COLOR}; 
             }}
             QPushButton:disabled {{
                 background-color: rgba(80,80,80,0.5);
@@ -806,7 +800,7 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
             }}
             QFrame#statusBar {{
                 border-top: 1px solid {INPUT_BORDER_COLOR};
-                background-color: transparent; /* Nền của status bar giống nền chính */
+                background-color: transparent; 
             }}
             QLabel#statusLabel {{
                 color: {SUBTEXT_COLOR};
@@ -816,4 +810,32 @@ class ProjectDocApp(BaseMainWindow): # Ke thua tu BaseMainWindow
         self.setStyleSheet(qss)
 
     def closeEvent(self, event):
-        super().closeEvent(event) 
+        # KTra xem co phai la dang dong tu animation cua BaseMainWindow ko
+        if self._animation_is_closing_flag:
+            event.accept() # Cho phep dong that
+            return
+        
+        # KTra xem animation dong cua BaseMainWindow co dang chay ko
+        if self.opacity_animation_close and self.opacity_animation_close.state() == QObject.property(" Estadual"): #.Running
+             event.ignore() # De animation chay xong
+             return
+
+        # Neu co worker thread dang chay
+        if self.worker_thread and self.worker_thread.isRunning():
+            reply = QMessageBox.question(self, "Xác nhận thoát",
+                                         "Một tác vụ đang chạy. Bạn có chắc muốn thoát?\n"
+                                         "Ứng dụng sẽ đợi tác vụ hoàn thành trước khi đóng.",
+                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                         QMessageBox.StandardButton.No)
+            if reply == QMessageBox.StandardButton.Yes:
+                self.run_button.setEnabled(False) 
+                self.status_label.setText("Đang hoàn tất tác vụ trước khi thoát...")
+                self._is_exiting_initiated_by_user = True 
+                
+                event.ignore()
+                return 
+            else:
+                event.ignore() 
+                return
+        else:
+            super().closeEvent(event)
