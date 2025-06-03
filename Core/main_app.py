@@ -305,11 +305,11 @@ class ProjectDocApp(BaseMainWindow):
         self.txt_radio.toggled.connect(lambda: self._on_output_format_changed("txt", self.txt_radio.isChecked()))
         self.md_radio.toggled.connect(lambda: self._on_output_format_changed("markdown", self.md_radio.isChecked()))
 
+        self.project_dir_list_widget.itemSelectionChanged.connect(self._update_control_states)
+        self.history_list_widget.itemSelectionChanged.connect(self._update_control_states)
+
+
     def retranslate_app_specific_ui(self):
-        # Tieu de cua so va title bar da duoc BaseMainWindow xu ly
-        # self.setWindowTitle(Translations.get("app_window_title_default"))
-        # self.custom_title_bar.setTitle("app_title_on_bar")
-        # self.custom_title_bar.setVersion("app_version_pyside6")
 
         # Cap nhat text cho cac tab
         tab_map = {
