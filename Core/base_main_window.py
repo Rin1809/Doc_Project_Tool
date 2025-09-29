@@ -32,7 +32,7 @@ class BaseMainWindow(QMainWindow):
         self._setup_window_properties()
         self._load_assets()
         self._init_ui_elements()
-        self._apply_initial_styles() # Styles se duoc ap dung o day
+        self._apply_initial_styles() # Styles se dc ap dung o day
 
         self._is_dragging = False
         self._drag_start_pos = QPoint()
@@ -92,10 +92,25 @@ class BaseMainWindow(QMainWindow):
 
     def _setup_window_properties(self):
         self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
+
+        initial_geom = QRect(WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT, 100, 100) # MDinh
         if hasattr(self, '_initial_geometry'):
-            self.setGeometry(self._initial_geometry)
-        else:
-            self.resize(WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT)
+            initial_geom = self._initial_geometry
+        
+            # KTra xem window co nam ngoai man hinh ko
+            screens = QApplication.screens()
+            is_on_screen = False
+            for screen in screens:
+                if screen.availableGeometry().intersects(initial_geom):
+                    is_on_screen = True
+                    break
+            
+            if not is_on_screen:
+                # Neu nam ngoai, can giua vao man hinh chinh
+                primary_screen_rect = QApplication.primaryScreen().availableGeometry()
+                initial_geom.moveCenter(primary_screen_rect.center())
+        
+        self.setGeometry(initial_geom)
 
         self.setWindowFlag(Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
